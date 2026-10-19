@@ -9,7 +9,7 @@ jest.mock('../../utils/logger.js');
 // cannot parse. A factory mock keeps the real file from ever being loaded here.
 jest.mock('../../utils/module-dir.js', () => ({ moduleDir: '/unused-in-these-tests' }));
 
-import { findDeletedFiles, applyChanges, type SyncChange } from '../sync.js';
+import { findDeletedFiles, applyChanges, isProtectedArea, type SyncChange } from '../sync.js';
 import type { GitignoreChecker } from '../../utils/gitignore.js';
 
 // Behaviour matrix for protected areas on deletion. The immutable guarantee lives next door in
@@ -221,5 +221,31 @@ describe('protected areas on deletion — behaviour matrix', () => {
 
         expect(survivingFiles(target)).toContain('services/pika/test/lambda/keeper.ts');
         expect(existsSync(path.join(target, 'services/pika/test/lambda/stale.ts'))).toBe(false);
+    });
+});
+
+describe('default protected areas', () => {
+    const PROTECTED_BY_DEFAULT = [
+        'services/pika/src/lib/custom/session-quality-hooks.ts',
+        'services/pika/test/custom/anything.test.ts',
+        'services/pika/src/lambda/converse-strands/custom_hooks.py'
+    ];
+    const defaults: string[] = JSON.parse(readFileSync(path.join(__dirname, '../../config/protected-areas.json'), 'utf8')).defaultProtectedAreas;
+
+    it.each(PROTECTED_BY_DEFAULT)('protects %s in the shipped config', (file) => {
+        expect(isProtectedArea(file, defaults)).toBe(true);
+    });
+
+    it('does not protect the framework session quality modules', () => {
+        expect(isProtectedArea('services/pika/src/lib/session-quality.ts', defaults)).toBe(false);
+        expect(isProtectedArea('services/pika/src/lib/session-quality-base.ts', defaults)).toBe(false);
+    });
+
+    it('lists the same three paths in the hardcoded fallback', () => {
+        const source = readFileSync(path.join(__dirname, '../sync.ts'), 'utf8');
+        const fallback = source.slice(source.indexOf('Fallback to hardcoded list'));
+        for (const entry of ['services/pika/src/lib/custom/**', 'services/pika/test/custom/**', 'services/pika/src/lambda/converse-strands/custom_hooks.py']) {
+            expect(fallback).toContain(`'${entry}'`);
+        }
     });
 });

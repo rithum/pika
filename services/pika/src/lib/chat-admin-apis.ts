@@ -125,6 +125,7 @@ import {
 import { MODEL_ID_TO_MODEL } from './model-types-utils';
 import { queryForSessionAnalytics, queryForSessions } from './opensearch/opensearch';
 import { getAccountIdFieldNames } from './utils';
+import { markSessionForInsightsOnThumbsDown } from './session-quality';
 
 function handleCustomFieldUpdate(
     newCustom: Record<string, unknown> | null | undefined,
@@ -1508,6 +1509,7 @@ export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCre
     };
 
     await addFeedback(feedbackToReturn);
+    await markSessionForInsightsOnThumbsDown(feedbackToReturn, 'admin');
     return feedbackToReturn;
 }
 

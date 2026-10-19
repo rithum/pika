@@ -22,6 +22,16 @@ import { getRegion } from '../../lib/utils';
 import { instructions } from './instructions/insights-instructions-v2';
 import OsClient from '../../lib/opensearch/opensearch-client';
 import { SessionIndex } from '../../lib/opensearch/types';
+import { extractToolFailuresFromTraces } from './tool-failures';
+import { truncateForAnalysis } from './truncation';
+import { getSessionQualityHooks, safeHook, safeHookSync } from '../../lib/session-quality';
+import { defaultSessionQualityHooks, type PendingNotification, type SessionQualityHooks } from '../../lib/session-quality-base';
+
+/** Result of analyzing one session; the runner persists update and only then sends notification. */
+export interface SessionAnalysisOutcome {
+    update?: ChatSessionLiteForUpdate;
+    notification?: PendingNotification;
+}
 
 // Namespace for deterministic AI feedback IDs (using uuidv5)
 const FEEDBACK_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
@@ -86,7 +96,8 @@ const bedrockClient = new BedrockRuntimeClient({ region: getRegion() });
 const s3Client = new S3Client({});
 
 const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
-const DEFAULT_MODEL = 'us.anthropic.claude-sonnet-4-5-20250929-v1:0';
+// Sonnet 4.6: 1M-token context window at Sonnet 4.5 pricing.
+const DEFAULT_MODEL = 'us.anthropic.claude-sonnet-4-6';
 const FAST_MODEL = 'anthropic.claude-haiku-4-5-20251001-v1:0';
 const MODEL = DEFAULT_MODEL;
 
@@ -138,10 +149,11 @@ interface ModelResponse<T = unknown, A extends Array<unknown> = T[]> {
  * In real time should we be looking/asking if the user needs help or if there are ways to improve?  (eg.  inline feedback)
  *
  * @param session The session to be analyzed
- * @param sessionBatch If needed, add updates to be performed on the session to this batch
  * @param feedbackBatch If needed, add feedback to be added on the session to this batch
+ * @returns The outcome; the runner applies update and sends notification after persist
  */
-export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessionBatch: ChatSessionLiteForUpdate[], feedbackBatch: ChatSessionFeedback[]) {
+export async function analyzeSession(session: ChatSession<RecordOrUndef>, feedbackBatch: ChatSessionFeedback[]): Promise<SessionAnalysisOutcome> {
+    const hooks = getSessionQualityHooks();
     const sessionKey = `${session.chatAppId}:${session.userId}:${session.sessionId}`;
     console.log(`[INSIGHTS-ANALYZER] Starting analysis for session: ${sessionKey}`);
 
@@ -151,7 +163,7 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
     const invocationMode = session.invocationMode || 'chat-app'; // undefined = chat-app (legacy)
     if (invocationMode !== 'chat-app') {
         console.log(`[SKIP] Session ${session.sessionId} is ${invocationMode} - not analyzing (chat-app only)`);
-        return;
+        return {};
     }
 
     // SAFETY CHECK #2: Detect excessive AI feedback (circuit breaker)
@@ -160,7 +172,7 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
     if (isCorrupted) {
         console.error(`[SAFETY] Session ${session.sessionId} has excessive AI feedback - skipping analysis`);
         // TODO: Send CloudWatch metric/alert here for monitoring
-        return;
+        return {};
     }
 
     console.log(`[SESSION] Analyzing chat-app session: ${session.sessionId}`);
@@ -204,15 +216,24 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
         // Simplify messages and traces
         if (messages.length) {
             let firstAnalyzedMessage = messages[0].messageId;
+            // Captured from the ORIGINAL array: truncation may omit middle messages.
             lastAnalyzedMessageId = messages[messages.length - 1].messageId;
+
+            const promptMessages = truncateForAnalysis(messages, undefined, { toolFailureSentinel: hooks.toolFailureBodySentinel }) as typeof messages;
+            if (promptMessages !== messages) {
+                console.log(`[INSIGHTS-ANALYZER] Truncated payload for session ${sessionKey}: ${messages.length} → ${promptMessages.length} messages`);
+            }
+
             let context: Record<string, any> = {
-                chat_messages: messages.map((m) => {
+                chat_messages: promptMessages.map((m) => {
                     if (m.source == 'user') {
                         if (!(session.agentId in userPrompts)) {
                             userPrompts[session.agentId] = [];
                         }
                         userPrompts[session.agentId].push(m.message);
                     }
+                    const toolFailures = extractToolFailuresFromTraces(m.traces, hooks.toolFailureBodySentinel);
+
                     return {
                         role: m.source,
                         content: m.message,
@@ -225,7 +246,8 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
                                     return t.failureTrace?.failureReason;
                                 }
                             })
-                            .filter((a) => !!a)
+                            .filter((a) => !!a),
+                        ...(toolFailures.length > 0 ? { toolFailures } : {})
                     };
                 })
             };
@@ -309,15 +331,22 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
                     })
                 );
 
-                sessionBatch.push({
+                const update: ChatSessionLiteForUpdate = {
                     userId: session.userId,
                     sessionId: session.sessionId,
                     lastAnalyzedMessageId,
                     insightStatus: null, // remove the insight status as we have computed the insights
                     insightsS3Url
-                });
+                };
 
-                addFeedback(scoring, session, firstAnalyzedMessage, lastAnalyzedMessageId, insightsS3Url, feedbackBatch);
+                // The insights are already in S3; persist the update even if feedback fails, or the session is re-analyzed every sweep.
+                try {
+                    const notification = await addFeedback(scoring, session, firstAnalyzedMessage, lastAnalyzedMessageId, insightsS3Url, feedbackBatch, hooks);
+                    return { update, notification };
+                } catch (feedbackError) {
+                    console.error(`[INSIGHTS-ANALYZER] addFeedback failed for session ${sessionKey}:`, feedbackError);
+                    return { update };
+                }
             } else {
                 console.error('***NO RESPONSE***', session.userId, session.sessionId);
             }
@@ -338,15 +367,18 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, sessio
 
         if (isUnrecoverableAnalysisError(e)) {
             console.error(`[INSIGHTS-ANALYZER] TERMINAL failure for session ${sessionKey} — marking INSIGHTS_FAILED`);
-            sessionBatch.push({
-                userId: session.userId,
-                sessionId: session.sessionId,
-                lastAnalyzedMessageId: session.lastMessageId,
-                insightStatus: INSIGHT_STATUS_INSIGHTS_FAILED,
-                insightsS3Url: undefined
-            });
+            return {
+                update: {
+                    userId: session.userId,
+                    sessionId: session.sessionId,
+                    lastAnalyzedMessageId: session.lastMessageId,
+                    insightStatus: INSIGHT_STATUS_INSIGHTS_FAILED,
+                    insightsS3Url: undefined
+                }
+            };
         }
     }
+    return {};
 }
 
 async function invokeModel<T = unknown>(
@@ -375,7 +407,7 @@ async function invokeModel<T = unknown>(
             max_tokens: 10000,
             top_k: 250,
             temperature: 1,
-            top_p: 0.999,
+            // No top_p: this model rejects temperature and top_p together.
             messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }],
             ...params
         }),
@@ -401,14 +433,15 @@ async function invokeModel<T = unknown>(
     };
 }
 
-export function addFeedback(
+export async function addFeedback(
     scoring: SnakeCase<SessionInsightScoring>,
     session: ChatSession<RecordOrUndef>,
     firstAnalyzedMessage: string,
     lastAnalyzedMessageId: string,
     insightsS3Url: string,
-    feedbackBatch: ChatSessionFeedback[]
-) {
+    feedbackBatch: ChatSessionFeedback[],
+    hooks: SessionQualityHooks
+): Promise<PendingNotification | undefined> {
     const feedbackUserId = `ai-feedback-user`;
     if (scoring) {
         let notes = [];
@@ -417,7 +450,13 @@ export function addFeedback(
         let feedbackCount = 0;
 
         // Check for critical issues and create appropriate feedback
-        if (scoring.assessments.critical_issues_present || scoring.assessments.requires_followup || scoring.assessments.escalation_needed) {
+        if (
+            safeHookSync(
+                'requiresEmployeeFollowup',
+                () => hooks.requiresEmployeeFollowup(scoring.assessments),
+                defaultSessionQualityHooks.requiresEmployeeFollowup(scoring.assessments)
+            )
+        ) {
             urgent.push('EMPLOYEE FOLLOWUP REQUIRED');
             feedbackBatch.push({
                 sessionId: session.sessionId,
@@ -531,6 +570,21 @@ export function addFeedback(
             if (urgent.length) {
                 console.log('Urgent Action needed for session', session.agentId, session.userId, session.sessionId);
             }
+
+            // A CloudWatch metric filter may key on INSIGHTS_FLAGGED.
+            console.warn(
+                `INSIGHTS_FLAGGED session_id=${session.sessionId} chat_app_id=${session.chatAppId} agent_id=${session.agentId}` +
+                    ` severity=${urgent.length ? 'urgent' : 'note'}` +
+                    ` goal=${scoring.assessments?.goal_completion_status ?? ''}` +
+                    ` satisfaction=${scoring.assessments?.satisfaction_level ?? ''}`
+            );
+
+            // Re-analysis of an already-alerted boundary: feedback writes are idempotent, notifications are not.
+            const alreadyAlerted = !!session.lastAnalyzedMessageId && session.lastAnalyzedMessageId === lastAnalyzedMessageId;
+            if (urgent.length && !alreadyAlerted) {
+                return await safeHook('buildFlaggedSessionNotification', () => hooks.buildFlaggedSessionNotification({ session, scoring, urgent, notes }), undefined);
+            }
         }
     }
+    return undefined;
 }

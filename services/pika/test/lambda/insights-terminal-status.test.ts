@@ -85,10 +85,9 @@ describe('terminal analysis failure', () => {
 
     async function failedUpdate() {
         mockGetMessages.mockRejectedValue(new Error('Input is too long for requested model.'));
-        const batch: ChatSessionLiteForUpdate[] = [];
-        await analyzeSession(makeSession(), batch, []);
-        expect(batch).toHaveLength(1);
-        return batch[0];
+        const outcome = await analyzeSession(makeSession(), []);
+        expect(outcome.update).toBeDefined();
+        return outcome.update as ChatSessionLiteForUpdate;
     }
 
     beforeEach(() => {
@@ -96,7 +95,7 @@ describe('terminal analysis failure', () => {
         process.env.CHAT_SESSION_TABLE = 'chat-session-table';
     });
 
-    it('pushes INSIGHTS_FAILED stamped with the session lastMessageId', async () => {
+    it('returns INSIGHTS_FAILED stamped with the session lastMessageId', async () => {
         const update = await failedUpdate();
         expect(update.insightStatus).toBe('INSIGHTS_FAILED');
         expect(update.lastAnalyzedMessageId).toBe('s1:00005');

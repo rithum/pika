@@ -16,6 +16,7 @@ module.exports = {
     },
     transformIgnorePatterns: ['node_modules/(?!(camelcase-keys|map-obj|snakecase-keys|@pika)/)'],
     moduleNameMapper: {
+        '^(.*)/custom/session-quality-hooks(\\.js)?$': '<rootDir>/test/setup/default-session-quality-hooks.ts',
         '^camelcase-keys$': '<rootDir>/test/__mocks__/camelcase-keys.js',
         '^snakecase-keys$': '<rootDir>/test/__mocks__/snakecase-keys.js',
         '^p-retry$': '<rootDir>/test/__mocks__/p-retry.js',

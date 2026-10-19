@@ -1,4 +1,4 @@
-import { ConditionalCheckFailedException, DynamoDBClient, PutItemCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb';
+import { ConditionalCheckFailedException, DynamoDBClient, GetItemCommand, PutItemCommand, DeleteItemCommand } from '@aws-sdk/client-dynamodb';
 import { ChatSession, ChatSessionFeedback, ChatSessionLiteForUpdate, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import { Context } from 'aws-lambda';
 import chunk from 'lodash.chunk';
@@ -6,10 +6,14 @@ import pMap from 'p-map';
 import pRetry, { AbortError } from 'p-retry';
 import { addChatSessionFeedback } from '../../lib/chat-admin-apis';
 import { getSessionsThatNeedInsightsAnalysisIterator, setSessionsInsightsAnalysisInBatch } from '../../lib/chat-admin-ddb';
+import { getChatSessionByUserIdAndSessionId } from '../../lib/chat-ddb';
+import { getSessionQualityHooks, safeHook } from '../../lib/session-quality';
+import type { PendingNotification, SessionQualityHooks } from '../../lib/session-quality-base';
 import { analyzeSession } from './insights-analyzer';
 
 const dynamoClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 const LOCK_NAME = 'session-insights-runner';
+const START_FLOOR_LOCK_NAME = 'session-insights-runner#start-floor';
 const LOCK_TTL_MINUTES = 20; // Longer than lambda timeout for safety
 
 interface PipelineConfig {
@@ -20,6 +24,8 @@ interface PipelineConfig {
     feedbackConcurrency: number; // Concurrent feedback writes: 2-5
     timeoutBufferMs: number; // Reserve time buffer: 30000 (30s)
     maxRetries: number; // Per operation: 3
+    chatAppAllowlist: Set<string> | undefined; // undefined = every chat app
+    insightsStartFloor?: string; // ISO date: only sweep sessions active on/after this
 }
 
 interface ProcessingResults {
@@ -28,8 +34,39 @@ interface ProcessingResults {
     errors: string[];
 }
 
-export async function handler(_event: any, context: Context) {
+export async function handler(_event: { sessionId?: string; userId?: string } | undefined, context: Context) {
     console.log('Session insights runner started at:', new Date().toISOString());
+
+    // Explicit session invoke bypasses the lock, the sweep gates and the start floor.
+    if (_event?.sessionId && _event?.userId) {
+        console.log(`[SINGLE-SESSION] Manual invocation for session: ${_event.sessionId}, user: ${_event.userId}`);
+        const session = await getChatSessionByUserIdAndSessionId(_event.userId, _event.sessionId);
+        if (!session) {
+            console.warn(`[SINGLE-SESSION] Session not found: userId=${_event.userId} sessionId=${_event.sessionId}`);
+            return { found: false, sessionId: _event.sessionId };
+        }
+        const feedbackBatch: ChatSessionFeedback[] = [];
+        const outcome = await analyzeSession(session, feedbackBatch);
+        const sessionUpdates = new Map<string, ChatSessionLiteForUpdate>();
+        const pendingNotifications = new Map<string, PendingNotification>();
+        if (outcome.update) sessionUpdates.set(session.sessionId, outcome.update);
+        if (outcome.notification) pendingNotifications.set(session.sessionId, outcome.notification);
+        if (sessionUpdates.size > 0 || feedbackBatch.length > 0) {
+            const singleConfig: PipelineConfig = {
+                queryPageSize: 1,
+                insightBatchSize: 1,
+                dbBatchSize: 1,
+                insightConcurrency: 1,
+                feedbackConcurrency: 1,
+                timeoutBufferMs: 0,
+                maxRetries: 3,
+                chatAppAllowlist: undefined
+            };
+            await flushPendingBatches(sessionUpdates, feedbackBatch, singleConfig, pendingNotifications);
+        }
+        console.log(`[SINGLE-SESSION] Finished session: ${_event.sessionId}`);
+        return { found: true, sessionId: _event.sessionId };
+    }
 
     if (!process.env.SESSION_RUNNER_MUTEX_TABLE) {
         console.error('SESSION_RUNNER_MUTEX_TABLE is not set');
@@ -46,6 +83,12 @@ export async function handler(_event: any, context: Context) {
         throw new Error('AWS_REGION is not set');
     }
 
+    const hooks = getSessionQualityHooks();
+    if (!(await safeHook('isSweepEnabled', () => hooks.isSweepEnabled(), false))) {
+        console.log('[CONFIG] scheduled insights sweep disabled; skipping');
+        return;
+    }
+
     // Try to acquire lock
     const lockAcquired = await acquireLock(LOCK_NAME, context.awsRequestId);
     if (!lockAcquired) {
@@ -60,6 +103,19 @@ export async function handler(_event: any, context: Context) {
         if (process.env.NOOP_EXECUTION === '1' || process.env.NOOP_EXECUTION === 'true') {
             console.log('NOOP_EXECUTION is set - skipping processing');
             return;
+        }
+
+        const insightsStartFloor = await resolveStartFloor(hooks);
+        if (insightsStartFloor === null) {
+            return;
+        }
+        const chatAppAllowlist = await safeHook('getChatAppAllowlist', () => hooks.getChatAppAllowlist(), new Set<string>());
+        if (chatAppAllowlist && chatAppAllowlist.size === 0) {
+            console.warn('[CONFIG] chat-app allowlist is empty; skipping sweep');
+            return;
+        }
+        if (chatAppAllowlist) {
+            console.log(`[CONFIG] chat-app allowlist has ${chatAppAllowlist.size} entries: ${[...chatAppAllowlist].join(', ')}`);
         }
 
         // Calculate date based on WAIT_TO_COMPUTE_INSIGHTS_MS
@@ -80,7 +136,9 @@ export async function handler(_event: any, context: Context) {
             insightConcurrency: 3, // Concurrent Bedrock calls - conservative
             feedbackConcurrency: 3, // Concurrent feedback writes - matches session processing
             timeoutBufferMs,
-            maxRetries: 3
+            maxRetries: 3,
+            chatAppAllowlist,
+            insightsStartFloor
         };
 
         // Run the hybrid pipeline
@@ -91,6 +149,49 @@ export async function handler(_event: any, context: Context) {
     } finally {
         // Always release the lock
         await releaseLock(LOCK_NAME);
+    }
+}
+
+export async function resolveStartFloor(hooks: SessionQualityHooks): Promise<string | null> {
+    const fromHook = await safeHook('getSweepStartFloor', () => hooks.getSweepStartFloor(), undefined);
+    if (fromHook) return fromHook;
+    if (process.env.INSIGHTS_START_FLOOR) return process.env.INSIGHTS_START_FLOOR;
+
+    const readFloor = async (): Promise<string | undefined> => {
+        const existing = await dynamoClient.send(
+            new GetItemCommand({
+                TableName: process.env.SESSION_RUNNER_MUTEX_TABLE!,
+                Key: { lock_name: { S: START_FLOOR_LOCK_NAME } },
+                ConsistentRead: true
+            })
+        );
+        return existing.Item?.floor?.S;
+    };
+
+    try {
+        const stamped = await readFloor();
+        if (stamped) return stamped;
+
+        const floor = new Date().toISOString();
+        try {
+            await dynamoClient.send(
+                new PutItemCommand({
+                    TableName: process.env.SESSION_RUNNER_MUTEX_TABLE!,
+                    // No ttl attribute: the lock TTL would otherwise expire the floor.
+                    Item: { lock_name: { S: START_FLOOR_LOCK_NAME }, floor: { S: floor } },
+                    ConditionExpression: 'attribute_not_exists(lock_name)'
+                })
+            );
+            return floor;
+        } catch (error) {
+            if (!(error instanceof ConditionalCheckFailedException)) throw error;
+            const raced = await readFloor();
+            if (raced) return raced;
+            throw new Error('start floor item missing after conditional check failure');
+        }
+    } catch (error) {
+        console.error('[CONFIG] start floor unavailable; skipping sweep', error);
+        return null;
     }
 }
 
@@ -155,7 +256,7 @@ export async function processInsightsWithPipeline(date: Date, config: PipelineCo
     const getRemainingTimeInMillis = () => context.getRemainingTimeInMillis();
 
     // Stage 1: Get session pages
-    const sessionPages = getSessionsThatNeedInsightsAnalysisIterator(date, config.queryPageSize, getRemainingTimeInMillis, config.timeoutBufferMs);
+    const sessionPages = getSessionsThatNeedInsightsAnalysisIterator(date, config.queryPageSize, getRemainingTimeInMillis, config.timeoutBufferMs, config.insightsStartFloor);
 
     // Stage 2-4: Process each page through the hybrid pipeline
     for await (const sessionPage of sessionPages) {
@@ -167,7 +268,7 @@ export async function processInsightsWithPipeline(date: Date, config: PipelineCo
 
         try {
             console.log(`[PIPELINE] Processing page with ${sessionPage.length} sessions...`);
-            const pageResults = await processPageWithAtomicCompletion(sessionPage, config, context);
+            const pageResults = await processPageWithAtomicCompletion(sessionPage, config, context, config.chatAppAllowlist);
             results.totalProcessed += pageResults.processed;
             results.totalFailed += pageResults.failed;
             results.errors.push(...pageResults.errors);
@@ -185,15 +286,17 @@ export async function processInsightsWithPipeline(date: Date, config: PipelineCo
     return results;
 }
 
-async function processPageWithAtomicCompletion(
+export async function processPageWithAtomicCompletion(
     sessions: ChatSession<RecordOrUndef>[],
     config: PipelineConfig,
-    context: Context
+    context: Context,
+    chatAppAllowlist: Set<string> | undefined
 ): Promise<{ processed: number; failed: number; errors: string[] }> {
     const results = { processed: 0, failed: 0, errors: [] as string[] };
 
-    // Small batch arrays that get flushed frequently
-    const sessionUpdateBatch: ChatSessionLiteForUpdate[] = [];
+    // Small batch collections that get flushed frequently
+    const sessionUpdates = new Map<string, ChatSessionLiteForUpdate>();
+    const pendingNotifications = new Map<string, PendingNotification>();
     const feedbackBatch: ChatSessionFeedback[] = [];
 
     // Process insights in controlled batches, but with atomic completion per session
@@ -202,21 +305,34 @@ async function processPageWithAtomicCompletion(
     for (const batch of insightBatches) {
         if (context.getRemainingTimeInMillis() < config.timeoutBufferMs) {
             console.log('Stopping batch processing - timeout approaching. Flushing pending batches...');
-            await flushPendingBatches(sessionUpdateBatch, feedbackBatch, config);
+            results.processed += await flushPendingBatches(sessionUpdates, feedbackBatch, config, pendingNotifications);
             break;
         }
 
         try {
             console.log(`[BATCH] Processing insight batch with ${batch.length} sessions (concurrency: ${config.insightConcurrency})`);
-            // Process batch with controlled concurrency, but ensure atomic completion
-            await pMap(
+            // Each mapper resolves to the count its threshold flush persisted, so mid-batch flushes are not lost from `processed`.
+            const flushedDuringBatch = await pMap(
                 batch,
-                (session) => {
+                (session): Promise<number> => {
+                    // Not allowlisted: clear only the queue flag; no analysis happened.
+                    if (chatAppAllowlist && !chatAppAllowlist.has(session.chatAppId)) {
+                        console.log(`[BATCH] Skipping session ${session.sessionId} (chatAppId=${session.chatAppId} not in allowlist) — clearing insight_status`);
+                        sessionUpdates.set(session.sessionId, {
+                            userId: session.userId,
+                            sessionId: session.sessionId,
+                            lastAnalyzedMessageId: undefined,
+                            insightStatus: null,
+                            insightsS3Url: undefined
+                        });
+                        return Promise.resolve(0);
+                    }
                     console.log(`[BATCH] Starting session: ${session.sessionId}`);
-                    return processSessionAtomically(session, sessionUpdateBatch, feedbackBatch, config, context);
+                    return processSessionAtomically(session, sessionUpdates, feedbackBatch, pendingNotifications, config, context);
                 },
                 { concurrency: config.insightConcurrency }
             );
+            results.processed += flushedDuringBatch.reduce((sum, n) => sum + n, 0);
 
             console.log(`[BATCH] Insight batch completed: ${batch.length} sessions processed`);
         } catch (error) {
@@ -227,13 +343,13 @@ async function processPageWithAtomicCompletion(
     }
 
     // Final flush of any remaining items
-    if (sessionUpdateBatch.length > 0 || feedbackBatch.length > 0) {
+    if (sessionUpdates.size > 0 || feedbackBatch.length > 0) {
         try {
-            await flushPendingBatches(sessionUpdateBatch, feedbackBatch, config);
-            results.processed += sessionUpdateBatch.length; // These were successfully flushed
+            // A successful flush empties the map, so count from its return value.
+            results.processed += await flushPendingBatches(sessionUpdates, feedbackBatch, config, pendingNotifications);
         } catch (error) {
             console.error('Final batch flush failed:', error);
-            results.failed += sessionUpdateBatch.length;
+            results.failed += sessionUpdates.size;
             results.errors.push(`Final flush error: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
@@ -248,11 +364,12 @@ async function processPageWithAtomicCompletion(
  */
 async function processSessionAtomically(
     session: ChatSession<RecordOrUndef>,
-    sessionBatch: ChatSessionLiteForUpdate[],
+    sessionUpdates: Map<string, ChatSessionLiteForUpdate>,
     feedbackBatch: ChatSessionFeedback[],
+    pendingNotifications: Map<string, PendingNotification>,
     config: PipelineConfig,
     context: Context
-): Promise<void> {
+): Promise<number> {
     return pRetry(
         async () => {
             // Critical timeout check before each session
@@ -262,15 +379,24 @@ async function processSessionAtomically(
 
             // Step 1: Do the analysis (S3 write happens here immediately)
             console.log(`[SESSION] Analyzing session: ${session.sessionId}`);
-            await analyzeSession(session, sessionBatch, feedbackBatch);
+            const outcome = await analyzeSession(session, feedbackBatch);
+            if (outcome.update) {
+                sessionUpdates.set(session.sessionId, outcome.update);
+            }
+            if (outcome.notification) {
+                pendingNotifications.set(session.sessionId, outcome.notification);
+            } else {
+                pendingNotifications.delete(session.sessionId);
+            }
             console.log(`[SESSION] Analysis completed for session: ${session.sessionId}`);
 
             // Step 2: Check if we need to flush batches to prevent memory accumulation
-            // and ensure timely processing
-            if (sessionBatch.length >= config.dbBatchSize) {
+            // and ensure timely processing. Return the count flushed so mid-batch flushes stay in `processed`.
+            if (sessionUpdates.size >= config.dbBatchSize) {
                 console.log(`[SESSION] Flushing batches - reached threshold of ${config.dbBatchSize} items`);
-                await flushPendingBatches(sessionBatch, feedbackBatch, config);
+                return await flushPendingBatches(sessionUpdates, feedbackBatch, config, pendingNotifications);
             }
+            return 0;
         },
         {
             retries: 3,
@@ -286,33 +412,47 @@ async function processSessionAtomically(
 
 /**
  * Flush pending batches transactionally to maintain consistency
- * Clears the arrays after successful processing
+ * Clears the collections after successful processing, then sends notifications (alert-after-persist).
+ * Returns the number of session updates persisted.
  */
-async function flushPendingBatches(sessionBatch: ChatSessionLiteForUpdate[], feedbackBatch: ChatSessionFeedback[], config: PipelineConfig): Promise<void> {
-    if (sessionBatch.length === 0 && feedbackBatch.length === 0) {
-        return; // Nothing to flush
+async function flushPendingBatches(
+    sessionUpdates: Map<string, ChatSessionLiteForUpdate>,
+    feedbackBatch: ChatSessionFeedback[],
+    config: PipelineConfig,
+    pendingNotifications: Map<string, PendingNotification>
+): Promise<number> {
+    if (sessionUpdates.size === 0 && feedbackBatch.length === 0) {
+        return 0; // Nothing to flush
     }
 
-    console.log(`Flushing ${sessionBatch.length} session updates and ${feedbackBatch.length} feedback records`);
+    const updates = [...sessionUpdates.values()];
+    console.log(`Flushing ${updates.length} session updates and ${feedbackBatch.length} feedback records`);
 
     try {
         // Process both updates transactionally - both succeed or both fail
         // This maintains consistency between session status and feedback records
         await Promise.all([
-            sessionBatch.length > 0 ? setSessionsInsightsAnalysisInBatch([...sessionBatch]) : Promise.resolve(),
+            updates.length > 0 ? setSessionsInsightsAnalysisInBatch(updates) : Promise.resolve(),
             feedbackBatch.length > 0 ? processFeedbackBatch([...feedbackBatch], config) : Promise.resolve()
         ]);
 
-        console.log(`Successfully flushed ${sessionBatch.length} sessions and ${feedbackBatch.length} feedback records`);
+        console.log(`Successfully flushed ${updates.length} sessions and ${feedbackBatch.length} feedback records`);
 
-        // Clear arrays only after successful processing
-        sessionBatch.length = 0;
+        // Clear collections only after successful processing
+        sessionUpdates.clear();
         feedbackBatch.length = 0;
     } catch (error) {
         console.error('Batch flush failed:', error);
-        // Don't clear arrays on failure - they'll be retried
+        // Don't clear on failure - they'll be retried
         throw error;
     }
+
+    for (const n of [...pendingNotifications.values()]) {
+        await safeHook('PendingNotification.send', () => n.send(), undefined);
+    }
+    pendingNotifications.clear();
+
+    return updates.length;
 }
 
 /**

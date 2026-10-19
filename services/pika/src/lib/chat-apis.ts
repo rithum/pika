@@ -74,6 +74,7 @@ import {
 } from './chat-ddb';
 import { getMatchingChatApps } from './get-matching-chat-apps';
 import { createSessionToken, getAccountBackfillAttributes, hasSessionAccountContext, getNextMessageId, validateUserCanAccessSession } from './utils';
+import { markSessionForInsightsOnThumbsDown } from './session-quality';
 
 function toStringId(value: unknown): string | undefined {
     if (typeof value === 'string' && value.length > 0) {
@@ -512,6 +513,7 @@ export async function addChatSessionFeedback(feedback: ChatSessionFeedbackForCre
     };
 
     await addFeedback(feedbackToReturn);
+    await markSessionForInsightsOnThumbsDown(feedbackToReturn, 'end-user');
     return feedbackToReturn;
 }
 

@@ -1994,7 +1994,10 @@ function getDefaultProtectedAreas(): string[] {
         'apps/pika-chat/src/routes/(noauth)/auth/callback/azuread/+server.ts',
         'apps/pika-chat/tools/custom-*/**',
         'apps/pika-chat/infra/lib/stacks/custom-stack-defs.ts',
-        'services/pika/lib/stacks/custom-stack-defs.ts'
+        'services/pika/lib/stacks/custom-stack-defs.ts',
+        'services/pika/src/lambda/converse-strands/custom_hooks.py',
+        'services/pika/src/lib/custom/**',
+        'services/pika/test/custom/**'
     ];
 }
 
