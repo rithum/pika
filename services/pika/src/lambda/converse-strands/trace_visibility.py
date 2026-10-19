@@ -12,14 +12,15 @@ ACTIVITY_TRACE_ID = 'activity'
 def is_trace_content_permitted(features: dict | None = None) -> bool:
     """Whether this turn's traces may carry their real content.
 
-    pika-chat forwards its server-side decision as `features.traces.enabled`. A request
-    without a `traces` dict is permitted; one whose `enabled` is not exactly True is not.
+    pika-chat forwards its server-side decision as `features.traces.enabled`. Only a
+    request whose `enabled` is exactly True is permitted: a pika-chat that predates the
+    forwarded decision sends no `traces` dict, and this service can deploy before it.
     """
     if isinstance(features, dict):
         traces = features.get('traces')
         if isinstance(traces, dict):
             return traces.get('enabled') is True
-    return True
+    return False
 
 
 def build_activity_trace() -> dict:

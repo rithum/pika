@@ -71,6 +71,7 @@ def main():
         'features': {
             'instructionAugmentation': {'enabled': True, 'type': 'llm-semantic-directive-search'},
             'verifyResponse': {'enabled': False},
+            'traces': {'enabled': True},
         },
     }
     # Only include chatAppId when set — empty string / unset → direct-agent-invoke mode.

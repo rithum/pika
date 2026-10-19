@@ -33,6 +33,7 @@ COLLABORATOR_FAILURE_MESSAGE = (
 )
 HOOKS_FAIL_CLOSED = False
 HOOK_ERROR_MESSAGE = "I'm sorry, I encountered an error processing your request."
+TOOL_FAILURE_BODY_SENTINEL: str | None = None
 
 
 @dataclass
