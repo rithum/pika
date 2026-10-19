@@ -57,6 +57,8 @@ consumer diverges from those (`package.json`, `.gitignore`, `README.md`) by desi
 | `apps/pika-chat/src/lib/client/features/chat/markdown-message-renderer/custom-markdown-tag-components/**` | Custom markdown components |
 | `apps/pika-chat/src/lib/server/auth-provider/**` | Auth provider implementation (OIDC, AzureAD, etc.) |
 | `services/custom/**` | Consumer-specific services |
+| `services/pika/src/lib/custom/**` | Consumer hooks for the pika service, such as `session-quality-hooks.ts` |
+| `services/pika/test/custom/**` | Consumer tests for the files under `services/pika/src/lib/custom/` |
 | `apps/custom/**` | Consumer-specific apps |
 
 ### Account / entity integration extension points (ES-3129)

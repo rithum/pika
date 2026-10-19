@@ -38,9 +38,10 @@ def _trace_frames(body):
 
 class TestHandlerAppliesTraceDecision:
 
-    def test_no_features_streams_trace_content(self):
+    def test_no_features_streams_frames_without_content(self):
         body = _run()
-        assert any('compressedData' in frame for frame in _trace_frames(body))
+        assert _trace_frames(body)
+        assert 'compressedData' not in body
 
     def test_disabled_traces_stream_frames_without_content(self):
         body = _run({'traces': {'enabled': False}})

@@ -110,16 +110,6 @@ class TestTraceContentPermitted:
     def test_resolved_feature_enabled_permits_content(self):
         assert is_trace_content_permitted(_traces_features()) is True
 
-    def test_no_feature_block_permits_content(self):
-        """A direct caller that forwards no decision keeps today's behavior."""
-        assert is_trace_content_permitted(None) is True
-
-    def test_feature_block_without_traces_permits_content(self):
-        assert is_trace_content_permitted({'verifyResponse': {}}) is True
-
-    def test_no_arguments_permits_content(self):
-        assert is_trace_content_permitted() is True
-
 
 class TestTraceContentWithheld:
 
@@ -128,6 +118,16 @@ class TestTraceContentWithheld:
 
     def test_traces_block_without_enabled_key_withholds_content(self):
         assert is_trace_content_permitted({'traces': {'detailedTraces': True}}) is False
+
+    def test_no_feature_block_withholds_content(self):
+        """A pika-chat that predates the forwarded decision must not unlock content."""
+        assert is_trace_content_permitted(None) is False
+
+    def test_feature_block_without_traces_withholds_content(self):
+        assert is_trace_content_permitted({'verifyResponse': {}}) is False
+
+    def test_no_arguments_withholds_content(self):
+        assert is_trace_content_permitted() is False
 
 
 class TestTraceContentGateEdges:
@@ -138,19 +138,19 @@ class TestTraceContentGateEdges:
         assert is_trace_content_permitted({'traces': {'enabled': enabled}}) is False
 
     @pytest.mark.parametrize('traces', [None, [], 'enabled', 0, True])
-    def test_non_dict_traces_block_permits_content(self, traces):
-        assert is_trace_content_permitted({'traces': traces}) is True
+    def test_non_dict_traces_block_withholds_content(self, traces):
+        assert is_trace_content_permitted({'traces': traces}) is False
 
     @pytest.mark.parametrize('features', [[], 'traces', 0, True, ('traces',)])
-    def test_non_dict_features_permits_content(self, features):
-        assert is_trace_content_permitted(features) is True
+    def test_non_dict_features_withholds_content(self, features):
+        assert is_trace_content_permitted(features) is False
 
-    def test_empty_features_permits_content(self):
-        assert is_trace_content_permitted({}) is True
+    def test_empty_features_withholds_content(self):
+        assert is_trace_content_permitted({}) is False
 
     def test_gate_returns_a_real_boolean(self):
         """Callers branch on this; a truthy dict would still work but is a trap."""
-        for result in (is_trace_content_permitted(None),
+        for result in (is_trace_content_permitted(_traces_features()),
                        is_trace_content_permitted(_traces_features(False)),
                        is_trace_content_permitted({'traces': {'enabled': 'true'}})):
             assert result is True or result is False

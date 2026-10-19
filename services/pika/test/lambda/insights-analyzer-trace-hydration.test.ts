@@ -69,7 +69,7 @@ describe('analyzeSession trace hydration', () => {
         getChatMessagesInSession.mockResolvedValue([offloaded('s1:1')]);
         getTracesForMessage.mockResolvedValue(rationale('OFFLOADED RATIONALE'));
 
-        await analyzeSession(session, [], []);
+        await analyzeSession(session, []);
 
         expect(getTracesForMessage).toHaveBeenCalledTimes(1);
         expect(sentPrompt()).toContain('OFFLOADED RATIONALE');
@@ -78,7 +78,7 @@ describe('analyzeSession trace hydration', () => {
     it('does not hydrate messages that already carry inline traces', async () => {
         getChatMessagesInSession.mockResolvedValue([message('s1:1', { traces: rationale('INLINE RATIONALE') as any })]);
 
-        await analyzeSession(session, [], []);
+        await analyzeSession(session, []);
 
         expect(getTracesForMessage).not.toHaveBeenCalled();
         expect(sentPrompt()).toContain('INLINE RATIONALE');
@@ -87,12 +87,11 @@ describe('analyzeSession trace hydration', () => {
     it('continues the analysis when hydrating one message fails', async () => {
         getChatMessagesInSession.mockResolvedValue([offloaded('s1:1'), offloaded('s1:2')]);
         getTracesForMessage.mockRejectedValueOnce(new Error('S3 throttled')).mockResolvedValueOnce(rationale('SECOND RATIONALE'));
-        const sessionBatch: any[] = [];
 
-        await analyzeSession(session, sessionBatch, []);
+        const outcome = await analyzeSession(session, []);
 
         expect(bedrockSend).toHaveBeenCalledTimes(1);
         expect(sentPrompt()).toContain('SECOND RATIONALE');
-        expect(sessionBatch).toHaveLength(1);
+        expect(outcome.update).toBeDefined();
     });
 });

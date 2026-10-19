@@ -51,6 +51,7 @@ def finalize_response(final, ctx):
 | `COLLABORATOR_FAILURE_MESSAGE` | "I'm sorry, I couldn't complete this request safely…" | Answer written when a hidden tool-mode collaborator fails |
 | `HOOKS_FAIL_CLOSED` | `False` | How hook errors are handled (see [Hook errors](#hook-errors)) |
 | `HOOK_ERROR_MESSAGE` | "I'm sorry, I encountered an error processing your request." | Answer written when a hook fails while `HOOKS_FAIL_CLOSED` is set |
+| `TOOL_FAILURE_BODY_SENTINEL` | `None` | A tool response body that starts with this string counts as a failure and logs `TOOL_FAILED tool=`. A response whose state isn't `SUCCESS` always logs. `None` turns the body check off. |
 
 ## Hooks
 

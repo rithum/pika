@@ -844,7 +844,8 @@ export async function* getSessionsThatNeedInsightsAnalysisIterator(
     date: Date,
     pageSize: number,
     getRemainingTimeInMillis: () => number,
-    timeoutBufferMs: number
+    timeoutBufferMs: number,
+    startFloor?: string
 ): AsyncGenerator<ChatSession<RecordOrUndef>[], void, undefined> {
     let lastEvaluatedKey: Record<string, any> | undefined;
     let pageCount = 0;
@@ -858,7 +859,7 @@ export async function* getSessionsThatNeedInsightsAnalysisIterator(
 
         const sessions = await ddbDocClient.send(
             new QueryCommand({
-                ...buildInsightsSweepQueryInput(getChatSessionTable(), date.toISOString()),
+                ...buildInsightsSweepQueryInput(getChatSessionTable(), date.toISOString(), startFloor),
                 ExclusiveStartKey: lastEvaluatedKey,
                 Limit: pageSize
             })
@@ -886,13 +887,13 @@ export async function* getSessionsThatNeedInsightsAnalysisIterator(
  *
  * @param date The date after which we should compute insights for based on the lastMessageId which can be used for date comparisons.
  */
-export async function getSessionsThatNeedInsightsAnalysis(date: Date): Promise<ChatSession<RecordOrUndef>[]> {
+export async function getSessionsThatNeedInsightsAnalysis(date: Date, startFloor?: string): Promise<ChatSession<RecordOrUndef>[]> {
     const allSessions: ChatSession<RecordOrUndef>[] = [];
     let lastEvaluatedKey: Record<string, any> | undefined;
 
     do {
         const sessions = await ddbDocClient.query({
-            ...buildInsightsSweepQueryInput(getChatSessionTable(), date.toISOString()),
+            ...buildInsightsSweepQueryInput(getChatSessionTable(), date.toISOString(), startFloor),
             ExclusiveStartKey: lastEvaluatedKey
         });
 

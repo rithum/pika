@@ -286,6 +286,10 @@ const request = {
 };
 ```
 
+{% aside type="note" title="Trace content with the Strands converse Lambda" %}
+The Strands converse Lambda sends trace content only when the request carries `features: { traces: { enabled: true } }`. A direct invocation without it receives content-free trace frames.
+{% /aside %}
+
 ### Handle Streaming Response
 
 ```typescript

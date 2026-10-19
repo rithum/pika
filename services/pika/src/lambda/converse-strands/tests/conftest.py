@@ -40,6 +40,7 @@ def valid_event():
             'userId': 'test-user-001',
             'sessionId': 'test-session-001',
             'message': 'What orders are pending for account 12345?',
+            'features': {'traces': {'enabled': True}},
         })
     }
 

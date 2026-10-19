@@ -5,6 +5,47 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0] - 2026-10-19
+
+### Added
+
+- **Session-quality hooks** (`services/pika/src/lib/custom/session-quality-hooks.ts`, sync-protected): tune the session-insights runner without patching it.
+  - The defaults live in the framework-owned `session-quality-base.ts`. A name your file doesn't define keeps its default.
+  - The members are `isSweepEnabled` (`true`), `getSweepStartFloor` (`undefined`), `getChatAppAllowlist` (`undefined`, every chat app), `requiresEmployeeFollowup` (critical issues, follow-up required or escalation needed), `buildFlaggedSessionNotification` (`undefined`, no notification), `shouldMarkForInsightsOnThumbsDown` (`false`) and `toolFailureBodySentinel` (`undefined`).
+  - A hook that throws is logged with `[SESSION-QUALITY] <hook> threw` and falls back safely. `isSweepEnabled`, `getChatAppAllowlist` and `getSweepStartFloor` fail closed and skip the sweep.
+  - The defaults keep today's behavior.
+  - See [Session Quality Hooks](/guides/advanced/session-quality-hooks/).
+- **Flagged-session notifications are sent only after the session update is saved.** A page retry replaces a session's earlier pending update and notification instead of adding a second one. Notifications are at-most-once: one lost to a timeout or a throwing `send()` is not retried, and the `INSIGHTS_FLAGGED` log line is the durable record.
+- **Overlapping batch flushes no longer drop or double-write records.** Each flush claims its sessions and feedback when it starts and puts them back if the write fails.
+- **A single-session invoke takes the sweep lock.** While a scheduled sweep holds it, the invoke returns `{ busy: true }` without analyzing. The runner's env is checked first.
+- **Sessions outside the chat-app allowlist have `insight_status` cleared without analysis.** Widening the allowlist later covers only sessions with new activity.
+- **Thumbs-down can queue a session for analysis.** A thumbs-down from an end user or an admin calls `shouldMarkForInsightsOnThumbsDown`. The default does no extra reads.
+- **Tool-failure signals** in the insights payload and the `TOOL_FAILED tool=` warning log in Strands.
+  - Both key on a consumer-set sentinel: `TOOL_FAILURE_BODY_SENTINEL` in `custom_hooks.py` and `toolFailureBodySentinel` in the TypeScript hooks. A tool body that starts with the sentinel, ignoring leading whitespace, counts as a failure. The default is none.
+  - A tool response whose state isn't `SUCCESS` always logs.
+- **Oversized sessions are truncated** to the analysis budget before analysis.
+- **Single-session runner invoke.** The runner accepts `{ userId, sessionId }` and analyzes that session. Pika exports no caller or ARN for it.
+- **Construct props, all off by default**, set in `custom-stack-defs.ts` `getPikaConstructProps`:
+  - `apiAccessLogs`: JSON access logs for ChatAdminApi and ChatbotApi. It needs the account-level API Gateway CloudWatch role, which pika doesn't create.
+  - `chatAdminApiAuth: 'IAM'`: IAM authorization on the chat-admin API. Every chat-admin caller must sign with SigV4, and pika's integration helpers don't.
+  - `sessionInsights.startFloor`: an ISO date for the insights start floor. A value that isn't an ISO date fails synth.
+  - `sessionInsights.reservedConcurrency`: reserved concurrency for the insights runner, for example 1 to rule out overlapping sweeps. The default is unset (none).
+- **pika-chat SSM helpers**: `putValueToParameterStore`, `deleteValueFromParameterStore` and `getParametersByPath(path, recursive)`.
+- **`pika-app` 1.9.0** protects `services/pika/src/lib/custom/**` and `services/pika/test/custom/**` by default. Upgrade the CLI before you sync: sync uses the installed CLI's protected list, so an older `pika-app` overwrites your hooks file.
+
+### Changed
+
+- **The Strands trace gate fails closed.** A request that doesn't forward `features.traces` gets content-free trace frames. pika-chat forwards the decision on every request, so pika-chat users see no change. Other callers must send `features: { traces: { enabled: true } }` to keep trace content.
+- **Session insights analysis works again.** Every analysis was rejected by Bedrock because `temperature` and `top_p` were sent together. The analyzer now uses `us.anthropic.claude-sonnet-4-6` without `top_p`. The model id is a literal and doesn't come from the `INFERENCE_PROFILE_*` environment.
+- **The insights runner starts from a start floor.** On its first scheduled sweep after the upgrade, the runner records the current time as its floor, and only sessions active after that time are analyzed. The backlog queued while analysis was failing is not drained. To backfill, set `sessionInsights.startFloor` before the first 0.33.0 sweep, or delete the `session-insights-runner#start-floor` item from the runner mutex table. If a `getSweepStartFloor` hook throws, the sweep is skipped and no floor is stamped.
+- **If writing a session's feedback fails after analysis, the session is marked INSIGHTS_FAILED instead of being re-analyzed each sweep.**
+
+### Migration
+
+1. Upgrade `pika-app` to 1.9.0, then run `pika sync`.
+2. If you run the session-insights runner and want the backlog analyzed, set `sessionInsights.startFloor` to an ISO date before the first 0.33.0 sweep. Otherwise the first sweep sets the floor to the current time.
+3. If you call the Strands converse Lambda directly or through something other than pika-chat, send `features: { traces: { enabled: true } }` to keep trace content.
+
 ## [0.32.0] - 2026-10-15
 
 ### Added

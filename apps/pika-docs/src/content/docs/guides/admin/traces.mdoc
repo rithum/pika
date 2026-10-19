@@ -291,7 +291,7 @@ The default returns `true`. When it returns `false` for a user:
 - The trace route returns 403.
 - The messages route strips traces, and so does the site-admin view.
 - The live stream is redacted to label-only step frames, for both converse implementations.
-- converse-strands is told through `features.traces.enabled`.
+- converse-strands is told through `features.traces.enabled`. A request that doesn't send `features.traces.enabled: true` gets content-free trace frames, so a caller other than pika-chat must send it to keep trace content.
 
 This hook does not cover `detailedTraces`, which is a UI-only setting.
 
