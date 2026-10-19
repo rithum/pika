@@ -153,3 +153,13 @@ describe('prod stage', () => {
         }
     });
 });
+
+describe('sessionInsights.startFloor validation', () => {
+    it.each(['10/19/2026', '2026-13-45', 'yesterday'])('rejects %s at synth', (startFloor) => {
+        expect(() => synth('test', { sessionInsights: { startFloor } })).toThrow('sessionInsights.startFloor must be an ISO date');
+    });
+
+    it('accepts a full ISO timestamp', () => {
+        expect(() => synth('test', { sessionInsights: { startFloor: '2026-10-01T00:00:00Z' } })).not.toThrow();
+    });
+});

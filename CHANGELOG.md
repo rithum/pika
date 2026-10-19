@@ -15,7 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A hook that throws is logged with `[SESSION-QUALITY] <hook> threw` and falls back safely. `isSweepEnabled`, `getChatAppAllowlist` and `getSweepStartFloor` fail closed and skip the sweep.
   - The defaults keep today's behavior.
   - See [Session Quality Hooks](/guides/advanced/session-quality-hooks/).
-- **Flagged-session notifications are sent only after the session update is saved.** A page retry replaces a session's earlier pending update and notification instead of adding a second one.
+- **Flagged-session notifications are sent only after the session update is saved.** A page retry replaces a session's earlier pending update and notification instead of adding a second one. Notifications are at-most-once: one lost to a timeout or a throwing `send()` is not retried, and the `INSIGHTS_FLAGGED` log line is the durable record.
+- **Overlapping batch flushes no longer drop or double-write records.** Each flush claims its sessions and feedback when it starts and puts them back if the write fails.
+- **A single-session invoke takes the sweep lock.** While a scheduled sweep holds it, the invoke returns `{ busy: true }` without analyzing. The runner's env is checked first.
+- **Sessions outside the chat-app allowlist have `insight_status` cleared without analysis.** Widening the allowlist later covers only sessions with new activity.
 - **Thumbs-down can queue a session for analysis.** A thumbs-down from an end user or an admin calls `shouldMarkForInsightsOnThumbsDown`. The default does no extra reads.
 - **Tool-failure signals** in the insights payload and the `TOOL_FAILED tool=` warning log in Strands.
   - Both key on a consumer-set sentinel: `TOOL_FAILURE_BODY_SENTINEL` in `custom_hooks.py` and `toolFailureBodySentinel` in the TypeScript hooks. A tool body that starts with the sentinel, ignoring leading whitespace, counts as a failure. The default is none.
@@ -25,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Construct props, all off by default**, set in `custom-stack-defs.ts` `getPikaConstructProps`:
   - `apiAccessLogs`: JSON access logs for ChatAdminApi and ChatbotApi. It needs the account-level API Gateway CloudWatch role, which pika doesn't create.
   - `chatAdminApiAuth: 'IAM'`: IAM authorization on the chat-admin API. Every chat-admin caller must sign with SigV4, and pika's integration helpers don't.
-  - `sessionInsights.startFloor`: an ISO date for the insights start floor.
+  - `sessionInsights.startFloor`: an ISO date for the insights start floor. A value that isn't an ISO date fails synth.
   - `sessionInsights.reservedConcurrency`: reserved concurrency for the insights runner, for example 1 to rule out overlapping sweeps. The default is unset (none).
 - **pika-chat SSM helpers**: `putValueToParameterStore`, `deleteValueFromParameterStore` and `getParametersByPath(path, recursive)`.
 - **`pika-app` 1.9.0** protects `services/pika/src/lib/custom/**` and `services/pika/test/custom/**` by default. Upgrade the CLI before you sync: sync uses the installed CLI's protected list, so an older `pika-app` overwrites your hooks file.

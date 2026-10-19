@@ -77,6 +77,11 @@ export class PikaConstruct extends Construct {
     constructor(scope: Construct, id: string, props: PikaConstructProps) {
         super(scope, id);
 
+        const startFloor = props.sessionInsights?.startFloor;
+        if (startFloor !== undefined && (!/^\d{4}-\d{2}-\d{2}/.test(startFloor) || Number.isNaN(Date.parse(startFloor)))) {
+            throw new Error(`sessionInsights.startFloor must be an ISO date (e.g. 2026-10-01 or 2026-10-01T00:00:00Z); got '${startFloor}'`);
+        }
+
         this.props = props;
 
         let openSearchDomain: opensearch.Domain | undefined;

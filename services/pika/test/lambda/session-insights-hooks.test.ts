@@ -541,7 +541,7 @@ describe('notification delivery', () => {
 
         bAnalysis.resolve();
         await until(() => released.length === 2);
-        expect(mockSetSessionsInsightsAnalysisInBatch.mock.calls[1][0]).toHaveLength(2);
+        expect(mockSetSessionsInsightsAnalysisInBatch.mock.calls[1][0]).toEqual([expect.objectContaining({ sessionId: 'b' })]);
 
         released[0]();
         await until(() => sent.length > 0);

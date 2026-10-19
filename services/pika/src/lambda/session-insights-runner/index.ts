@@ -37,37 +37,6 @@ interface ProcessingResults {
 export async function handler(_event: { sessionId?: string; userId?: string } | undefined, context: Context) {
     console.log('Session insights runner started at:', new Date().toISOString());
 
-    // Explicit session invoke bypasses the lock, the sweep gates and the start floor.
-    if (_event?.sessionId && _event?.userId) {
-        console.log(`[SINGLE-SESSION] Manual invocation for session: ${_event.sessionId}, user: ${_event.userId}`);
-        const session = await getChatSessionByUserIdAndSessionId(_event.userId, _event.sessionId);
-        if (!session) {
-            console.warn(`[SINGLE-SESSION] Session not found: userId=${_event.userId} sessionId=${_event.sessionId}`);
-            return { found: false, sessionId: _event.sessionId };
-        }
-        const feedbackBatch: ChatSessionFeedback[] = [];
-        const outcome = await analyzeSession(session, feedbackBatch);
-        const sessionUpdates = new Map<string, ChatSessionLiteForUpdate>();
-        const pendingNotifications = new Map<string, PendingNotification>();
-        if (outcome.update) sessionUpdates.set(session.sessionId, outcome.update);
-        if (outcome.notification) pendingNotifications.set(session.sessionId, outcome.notification);
-        if (sessionUpdates.size > 0 || feedbackBatch.length > 0) {
-            const singleConfig: PipelineConfig = {
-                queryPageSize: 1,
-                insightBatchSize: 1,
-                dbBatchSize: 1,
-                insightConcurrency: 1,
-                feedbackConcurrency: 1,
-                timeoutBufferMs: 0,
-                maxRetries: 3,
-                chatAppAllowlist: undefined
-            };
-            await flushPendingBatches(sessionUpdates, feedbackBatch, singleConfig, pendingNotifications);
-        }
-        console.log(`[SINGLE-SESSION] Finished session: ${_event.sessionId}`);
-        return { found: true, sessionId: _event.sessionId };
-    }
-
     if (!process.env.SESSION_RUNNER_MUTEX_TABLE) {
         console.error('SESSION_RUNNER_MUTEX_TABLE is not set');
         throw new Error('SESSION_RUNNER_MUTEX_TABLE is not set');
@@ -81,6 +50,20 @@ export async function handler(_event: { sessionId?: string; userId?: string } | 
     if (!process.env.AWS_REGION) {
         console.error('AWS_REGION is not set');
         throw new Error('AWS_REGION is not set');
+    }
+
+    // Explicit session invoke bypasses the sweep gates and the start floor, but shares the sweep lock so a session is never analyzed twice at once.
+    if (_event?.sessionId && _event?.userId) {
+        console.log(`[SINGLE-SESSION] Manual invocation for session: ${_event.sessionId}, user: ${_event.userId}`);
+        if (!(await acquireLock(LOCK_NAME, context.awsRequestId))) {
+            console.warn(`[SINGLE-SESSION] Sweep lock held; not analyzing session ${_event.sessionId}`);
+            return { busy: true, sessionId: _event.sessionId };
+        }
+        try {
+            return await runSingleSession(_event.userId, _event.sessionId);
+        } finally {
+            await releaseLock(LOCK_NAME);
+        }
     }
 
     const hooks = getSessionQualityHooks();
@@ -150,6 +133,35 @@ export async function handler(_event: { sessionId?: string; userId?: string } | 
         // Always release the lock
         await releaseLock(LOCK_NAME);
     }
+}
+
+async function runSingleSession(userId: string, sessionId: string): Promise<{ found: boolean; sessionId: string }> {
+    const session = await getChatSessionByUserIdAndSessionId(userId, sessionId);
+    if (!session) {
+        console.warn(`[SINGLE-SESSION] Session not found: userId=${userId} sessionId=${sessionId}`);
+        return { found: false, sessionId };
+    }
+    const feedbackBatch: ChatSessionFeedback[] = [];
+    const outcome = await analyzeSession(session, feedbackBatch);
+    const sessionUpdates = new Map<string, ChatSessionLiteForUpdate>();
+    const pendingNotifications = new Map<string, PendingNotification>();
+    if (outcome.update) sessionUpdates.set(session.sessionId, outcome.update);
+    if (outcome.notification) pendingNotifications.set(session.sessionId, outcome.notification);
+    if (sessionUpdates.size > 0 || feedbackBatch.length > 0) {
+        const singleConfig: PipelineConfig = {
+            queryPageSize: 1,
+            insightBatchSize: 1,
+            dbBatchSize: 1,
+            insightConcurrency: 1,
+            feedbackConcurrency: 1,
+            timeoutBufferMs: 0,
+            maxRetries: 3,
+            chatAppAllowlist: undefined
+        };
+        await flushPendingBatches(sessionUpdates, feedbackBatch, singleConfig, pendingNotifications);
+    }
+    console.log(`[SINGLE-SESSION] Finished session: ${sessionId}`);
+    return { found: true, sessionId };
 }
 
 export async function resolveStartFloor(hooks: SessionQualityHooks): Promise<string | null> {
@@ -319,7 +331,7 @@ export async function processPageWithAtomicCompletion(
             console.log(`[BATCH] Processing insight batch with ${batch.length} sessions (concurrency: ${config.insightConcurrency})`);
             const flushedDuringBatch = await pMap(
                 batch,
-                (session): Promise<number> => {
+                async (session): Promise<number> => {
                     if (chatAppAllowlist && !chatAppAllowlist.has(session.chatAppId)) {
                         console.log(`[BATCH] Skipping session ${session.sessionId} (chatAppId=${session.chatAppId} not in allowlist) — clearing insight_status`);
                         sessionUpdates.set(session.sessionId, {
@@ -329,7 +341,7 @@ export async function processPageWithAtomicCompletion(
                             insightStatus: null,
                             insightsS3Url: undefined
                         });
-                        return Promise.resolve(0);
+                        return sessionUpdates.size >= config.dbBatchSize ? flushPendingBatches(sessionUpdates, feedbackBatch, config, pendingNotifications) : 0;
                     }
                     console.log(`[BATCH] Starting session: ${session.sessionId}`);
                     return processSessionAtomically(session, sessionUpdates, feedbackBatch, pendingNotifications, config, context);
@@ -425,33 +437,30 @@ async function flushPendingBatches(
         return 0;
     }
 
+    // Claim the batch up front: sessions run concurrently, so another flush can start while this one awaits DynamoDB.
     const flushedIds = [...sessionUpdates.keys()];
     const updates = flushedIds.map((id) => sessionUpdates.get(id)!);
-    const feedbackCount = feedbackBatch.length;
-    const feedbackSlice = feedbackBatch.slice(0, feedbackCount);
-    // A retry can replace a session's entry mid-flush; only entries that are still the ones written count as settled.
-    const settledIds: string[] = [];
-    console.log(`Flushing ${updates.length} session updates and ${feedbackCount} feedback records`);
+    sessionUpdates.clear();
+    const feedbackSlice = feedbackBatch.splice(0, feedbackBatch.length);
+    console.log(`Flushing ${updates.length} session updates and ${feedbackSlice.length} feedback records`);
 
     try {
         await Promise.all([
             updates.length > 0 ? setSessionsInsightsAnalysisInBatch(updates) : Promise.resolve(),
-            feedbackCount > 0 ? processFeedbackBatch(feedbackSlice, config) : Promise.resolve()
+            feedbackSlice.length > 0 ? processFeedbackBatch(feedbackSlice, config) : Promise.resolve()
         ]);
-
-        console.log(`Successfully flushed ${updates.length} sessions and ${feedbackCount} feedback records`);
-
-        flushedIds.forEach((id, i) => {
-            if (sessionUpdates.get(id) === updates[i]) {
-                sessionUpdates.delete(id);
-                settledIds.push(id);
-            }
-        });
-        feedbackBatch.splice(0, feedbackCount);
     } catch (error) {
         console.error('Batch flush failed:', error);
+        flushedIds.forEach((id, i) => {
+            if (!sessionUpdates.has(id)) sessionUpdates.set(id, updates[i]);
+        });
+        feedbackBatch.unshift(...feedbackSlice);
         throw error;
     }
+
+    console.log(`Successfully flushed ${updates.length} sessions and ${feedbackSlice.length} feedback records`);
+    // A session re-queued while this flush was in flight keeps its notification for the flush that writes its newer entry.
+    const settledIds = flushedIds.filter((id) => !sessionUpdates.has(id));
 
     const toSend: PendingNotification[] = [];
     for (const id of settledIds) {

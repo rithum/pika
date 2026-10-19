@@ -36,6 +36,10 @@ Set the sentinel in both custom_hooks.py and session-quality-hooks.ts; each side
 
 `buildFlaggedSessionNotification` receives a `FlaggedSessionEvent` with `session`, `scoring`, `urgent` and `notes`. Pika calls `send()` only after the session's analysis update is saved. If a page is retried, the session's earlier pending update and notification are replaced, so each flagged session produces one notification.
 
+Notifications are at-most-once. If the Lambda times out or `send()` throws after the update is saved, that notification is not retried. The `INSIGHTS_FLAGGED` log line is written for every flagged session, so a CloudWatch metric filter on it is the durable record.
+
+A session whose chat app isn't in `getChatAppAllowlist` has its `insight_status` cleared without analysis, so it isn't re-read on every sweep. Widening the allowlist later covers only sessions with new activity after the change.
+
 `shouldMarkForInsightsOnThumbsDown` receives a `ThumbsDownContext` with `userId`, `sessionId`, `chatAppId`, `sessionAttributes` and `source` (`'end-user'` or `'admin'`). When the member isn't overridden, a thumbs-down does no extra reads.
 
 ## When a hook throws
@@ -61,7 +65,7 @@ The runner picks its start floor from the first of these that is set:
 2. The `INSIGHTS_START_FLOOR` environment variable, which the `sessionInsights.startFloor` construct prop sets.
 3. A stamp. On the first scheduled sweep, the runner writes the current time as an item named `session-insights-runner#start-floor` in the runner mutex table, then reuses it on every later sweep. The item has no expiry.
 
-On the upgrade that introduces the runner's start floor, the first sweep stamps "now", so a backlog of sessions queued earlier isn't analyzed. To backfill, set `sessionInsights.startFloor` to an ISO date in `getPikaConstructProps` (in `custom-stack-defs.ts`) before the first sweep, or delete the stamp item from the mutex table. A single-session invoke ignores the floor. If the stamp can't be read or written, the sweep is skipped.
+On the upgrade that introduces the runner's start floor, the first sweep stamps "now", so a backlog of sessions queued earlier isn't analyzed. To backfill, set `sessionInsights.startFloor` to an ISO date in `getPikaConstructProps` (in `custom-stack-defs.ts`) before the first sweep, or delete the stamp item from the mutex table. A single-session invoke (`{ sessionId, userId }`) ignores the floor and the sweep gates but takes the sweep lock; while a sweep holds it, the invoke returns `{ busy: true }` without analyzing. If the stamp can't be read or written, the sweep is skipped.
 
 ## Example
 
