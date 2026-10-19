@@ -1,6 +1,7 @@
 import type { KMSProvider } from './KMSProvider';
 import type { SSMKeyProvider } from './SSMKeyProvider';
 import type { KeyRotationResult } from './types';
+import { VersionManager } from './VersionManager';
 
 /**
  * Perform key rotation with proper locking and error handling.
@@ -53,8 +54,8 @@ export async function rotateKeys(
         // Main rotation logic
         console.log(isInitialization ? 'Initializing keys...' : 'Rotating keys...');
 
-        // Calculate new version
-        const newVersion = (currentVersion % 100) + 1;
+        const versionManager = new VersionManager();
+        const newVersion = versionManager.calculateNextVersion(currentVersion);
 
         // Generate new data key
         const { plaintextKey, encryptedKey } = await kmsProvider.generateDataKey();
@@ -62,8 +63,7 @@ export async function rotateKeys(
         // Store encrypted key
         await ssmKeyProvider.storeEncryptedDEK(newVersion, encryptedKey);
 
-        // Update active versions
-        const newActiveVersions = [...activeVersions, newVersion].sort((a, b) => b - a).slice(0, maxKeyVersions);
+        const newActiveVersions = versionManager.nextActiveVersions(newVersion, currentVersion, activeVersions, maxKeyVersions);
 
         // Update SSM parameters
         await ssmKeyProvider.updateCurrentVersion(newVersion);

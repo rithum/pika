@@ -7,6 +7,16 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.33.1
+
+- **Cookie-key rollover fix.** When the cookie-encryption key version wrapped from 100 to 1, rotation dropped the new current key and every pika-chat login failed. Active versions are now kept in rotation order, and pika-chat always loads the current key, so a stage already in that state recovers on redeploy.
+- **Key refresh keeps the previous key until the new one loads**, so a failed refresh no longer locks users out.
+
+**Upgrade impact**:
+- None to configure. Deploy before a stage's `cookie-encryption/current-version` reaches 100.
+
+**Latest Stable:** `0.33.1` (October 19, 2026)
+
 ### What's New in 0.33.0
 
 - **Session insights analysis works again.** Every analysis was rejected by Bedrock because `temperature` and `top_p` were sent together. The analyzer now uses `us.anthropic.claude-sonnet-4-6` without `top_p`.
@@ -20,8 +30,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - The Strands trace gate fails closed. A caller that doesn't forward `features.traces` gets content-free trace frames. pika-chat forwards the decision on every request, so its users see no change. Other callers send `features: { traces: { enabled: true } }` to keep content.
 - On its first scheduled sweep after the upgrade, the insights runner records the current time as its start floor and analyzes only sessions active after it. To backfill, set `sessionInsights.startFloor` before that sweep, or delete the `session-insights-runner#start-floor` item from the runner mutex table.
 - Upgrade to `pika-app` 1.9.0 before you sync. Sync uses the installed CLI's protected list, so an older `pika-app` overwrites your hooks file.
-
-**Latest Stable:** `0.33.0` (October 19, 2026)
 
 ### What's New in 0.32.0
 
@@ -763,6 +771,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.33.1  | Oct 19 2026 | Patch    | Cookie-encryption key rotation keeps the current key across the 100→1 version wrap, which had broken every login; broken stages recover on redeploy |
 | 0.33.0  | Oct 19 2026 | Minor    | Session insights fixed on Sonnet 4.6, session-quality hooks, thumbs-down queuing, start floor, access-log and IAM props, fail-closed Strands trace gate |
 | 0.32.0  | Oct 15 2026 | Minor    | Strands handler hooks, tool loop guard, tool-mode collaborators, session account pin, Sonnet 5.5 Strands default |
 | 0.31.0  | Oct 12 2026 | Minor    | S3 trace offload with lazy-loaded Answer Reasoning, trace-content-access hook, label-only step frames, `traces/` hardening |

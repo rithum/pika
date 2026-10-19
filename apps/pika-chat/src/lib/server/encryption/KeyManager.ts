@@ -54,7 +54,7 @@ export class KeyManager {
             console.log(`[KeyManager] Found current version: ${this.currentVersion}, active versions: [${allParams.activeVersions?.join(', ')}]`);
 
             // Load all active keys into cache using batch data
-            await this.loadKeysIntoCacheBatch(allParams);
+            await this.loadKeysIntoCacheBatch(allParams, this.versionsToCache(allParams, this.currentVersion));
 
             this.lastRefreshTime = Date.now();
             this.initialized = true;
@@ -130,14 +130,15 @@ export class KeyManager {
             // Check if we need to update our cache
             let cacheNeedsUpdate = false;
 
-            if (allParams.currentVersion !== this.currentVersion) {
-                console.log(`[KeyManager] Current version changed: ${this.currentVersion} → ${allParams.currentVersion}`);
-                this.currentVersion = allParams.currentVersion ?? 1;
+            const latestCurrentVersion = allParams.currentVersion ?? 1;
+            if (latestCurrentVersion !== this.currentVersion) {
+                console.log(`[KeyManager] Current version changed: ${this.currentVersion} → ${latestCurrentVersion}`);
                 cacheNeedsUpdate = true;
             }
 
+            const latestVersions = this.versionsToCache(allParams, latestCurrentVersion);
             const currentCachedVersions = Array.from(this.keyCache.keys()).sort();
-            const sortedLatestVersions = this.versionManager.sortVersions(allParams.activeVersions || []);
+            const sortedLatestVersions = this.versionManager.sortVersions(latestVersions);
 
             if (!this.arraysEqual(currentCachedVersions.sort(), sortedLatestVersions.sort())) {
                 console.log(`[KeyManager] Active versions changed: [${currentCachedVersions.join(', ')}] → [${sortedLatestVersions.join(', ')}]`);
@@ -146,10 +147,11 @@ export class KeyManager {
 
             if (cacheNeedsUpdate) {
                 // Load new/updated keys using batch data
-                await this.loadKeysIntoCacheBatch(allParams);
+                await this.loadKeysIntoCacheBatch(allParams, latestVersions);
 
                 // Clean up old cached versions that are no longer active
-                this.cleanupCache(allParams.activeVersions || []);
+                this.cleanupCache(latestVersions);
+                this.currentVersion = latestCurrentVersion;
 
                 console.log(
                     `[KeyManager] Cache updated. Now caching ${this.keyCache.size} versions: [${Array.from(this.keyCache.keys())
@@ -266,11 +268,12 @@ export class KeyManager {
     /**
      * Load keys using batch data from SSM (optimized)
      * @param allParams - Batch data from getAllKeyParameters()
+     * @param versions - Versions to load
      */
-    private async loadKeysIntoCacheBatch(allParams: SsmKeyParameters): Promise<void> {
-        console.log(`[KeyManager] Loading keys for versions: [${allParams.activeVersions?.join(', ')}]`);
+    private async loadKeysIntoCacheBatch(allParams: SsmKeyParameters, versions: number[]): Promise<void> {
+        console.log(`[KeyManager] Loading keys for versions: [${versions.join(', ')}]`);
 
-        const loadPromises = (allParams.activeVersions || []).map(async (version) => {
+        const loadPromises = versions.map(async (version) => {
             try {
                 // Skip if already cached
                 if (this.keyCache.has(version)) {
@@ -306,6 +309,16 @@ export class KeyManager {
         });
 
         await Promise.all(loadPromises);
+    }
+
+    // Includes the current version even when active-versions omits it, so a bad rotation cannot take down encryption.
+    // Only when its key exists: initialize() runs at server startup, and a missing key must not stop the server.
+    private versionsToCache(allParams: SsmKeyParameters, currentVersion: number): number[] {
+        const activeVersions = allParams.activeVersions || [];
+        if (activeVersions.includes(currentVersion) || !allParams.encryptedKeys?.[currentVersion]) {
+            return activeVersions;
+        }
+        return [currentVersion, ...activeVersions];
     }
 
     /**
