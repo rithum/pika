@@ -15,6 +15,7 @@ export interface TruncatableMessage {
     source: string;
     message: string;
     traces?: unknown[];
+    toolFailures?: string[];
 }
 
 /** Structural subset of a Bedrock agent Trace — only the parts the prompt build / tool listing read. */
@@ -49,7 +50,7 @@ export function estimateAnalysisTokens(messages: TruncatableMessage[], opts?: { 
                 }
             })
             .filter((a) => !!a),
-        toolFailures: extractToolFailuresFromTraces(m.traces, opts?.toolFailureSentinel)
+        toolFailures: m.toolFailures ?? extractToolFailuresFromTraces(m.traces, opts?.toolFailureSentinel)
     }));
     return Math.ceil(JSON.stringify(projected).length / CHARS_PER_TOKEN);
 }
@@ -102,7 +103,13 @@ export function truncateForAnalysis<T extends TruncatableMessage>(
     }
 
     let reduced: (T | TruncatableMessage)[] = messages.map((m) =>
-        m.traces?.length && !(m.traces.length === 1 && isToolListTrace(m.traces[0])) ? { ...m, traces: [buildToolListTrace(m.traces)] } : m
+        m.traces?.length && !(m.traces.length === 1 && isToolListTrace(m.traces[0]))
+            ? {
+                  ...m,
+                  traces: [buildToolListTrace(m.traces)],
+                  toolFailures: extractToolFailuresFromTraces(m.traces, opts?.toolFailureSentinel)
+              }
+            : m
     );
     if (estimateAnalysisTokens(reduced, opts) <= budgetTokens) {
         return reduced;

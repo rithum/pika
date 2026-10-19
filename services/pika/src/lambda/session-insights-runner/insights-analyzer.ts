@@ -232,7 +232,7 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, feedba
                         }
                         userPrompts[session.agentId].push(m.message);
                     }
-                    const toolFailures = extractToolFailuresFromTraces(m.traces, hooks.toolFailureBodySentinel);
+                    const toolFailures = (m as { toolFailures?: string[] }).toolFailures ?? extractToolFailuresFromTraces(m.traces, hooks.toolFailureBodySentinel);
 
                     return {
                         role: m.source,
@@ -339,13 +339,13 @@ export async function analyzeSession(session: ChatSession<RecordOrUndef>, feedba
                     insightsS3Url
                 };
 
-                // The insights are already in S3; persist the update even if feedback fails, or the session is re-analyzed every sweep.
+                // The insights are in S3; a feedback failure is terminal (INSIGHTS_FAILED) rather than re-analyzed every sweep.
                 try {
                     const notification = await addFeedback(scoring, session, firstAnalyzedMessage, lastAnalyzedMessageId, insightsS3Url, feedbackBatch, hooks);
                     return { update, notification };
                 } catch (feedbackError) {
                     console.error(`[INSIGHTS-ANALYZER] addFeedback failed for session ${sessionKey}:`, feedbackError);
-                    return { update };
+                    return { update: { ...update, insightStatus: INSIGHT_STATUS_INSIGHTS_FAILED } };
                 }
             } else {
                 console.error('***NO RESPONSE***', session.userId, session.sessionId);

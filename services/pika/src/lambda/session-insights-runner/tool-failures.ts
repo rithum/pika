@@ -18,7 +18,7 @@ export function extractToolFailuresFromTraces(traces: unknown[] | undefined, sen
             }
         ).orchestrationTrace?.observation;
         const observationText = observation?.actionGroupInvocationOutput?.text ?? observation?.knowledgeBaseLookupOutput?.text;
-        if (observationText?.startsWith(sentinel)) {
+        if (observationText?.trimStart().startsWith(sentinel)) {
             toolFailures.push(observationText);
         }
     });

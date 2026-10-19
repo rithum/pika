@@ -13,13 +13,13 @@
         "Added: thumbs-down from end users and admins can queue a session for insights analysis through a hook.",
         "Added: tool-failure signals in the insights payload and the TOOL_FAILED log in Strands, keyed on a consumer-set sentinel.",
         "Added: single-session insights runner invoke, and truncation of oversized sessions.",
-        "Added: construct props apiAccessLogs, chatAdminApiAuth and sessionInsights.startFloor, all off by default.",
+        "Added: construct props apiAccessLogs, chatAdminApiAuth, sessionInsights.startFloor and sessionInsights.reservedConcurrency, all off by default.",
         "Added: pika-chat SSM helpers putValueToParameterStore, deleteValueFromParameterStore and getParametersByPath.",
         "Added: pika-app 1.9.0 protects services/pika/src/lib/custom/** and services/pika/test/custom/** by default.",
         "Changed: the Strands trace gate fails closed; callers must send features.traces.enabled to keep trace content.",
         "Changed: insights analysis uses us.anthropic.claude-sonnet-4-6 without top_p, fixing a Bedrock rejection of every analysis.",
         "Changed: the insights runner records a start floor on its first sweep; backfill with sessionInsights.startFloor.",
-        "Changed: the insights runner has reserved concurrency 1."
+        "Changed: if writing a session's feedback fails after analysis, the session is marked INSIGHTS_FAILED instead of being re-analyzed each sweep."
       ]
     },
     {

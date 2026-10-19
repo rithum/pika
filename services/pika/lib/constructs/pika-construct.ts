@@ -46,6 +46,8 @@ export interface PikaConstructProps {
     sessionInsights?: {
         /** ISO date. The scheduled sweep skips sessions last active before it. Unset: the runner's first sweep sets it. */
         startFloor?: string;
+        /** Reserved concurrency for the insights runner (e.g. 1 to rule out overlapping sweeps). Unset: none. */
+        reservedConcurrency?: number;
     };
 }
 
@@ -3065,8 +3067,7 @@ export class PikaConstruct extends Construct {
             memorySize: 1024,
             role: sessionInsightsRunnerLambdaRole,
             architecture: lambda.Architecture.ARM_64,
-            // The DDB mutex has TTL-expiry gaps; overlapping runs would race the session-record persists.
-            reservedConcurrentExecutions: 1,
+            ...(this.props.sessionInsights?.reservedConcurrency !== undefined ? { reservedConcurrentExecutions: this.props.sessionInsights.reservedConcurrency } : {}),
             environment: insightsEnvironment,
             bundling: {
                 minify: true,

@@ -23,6 +23,23 @@ jest.mock('@aws-sdk/client-dynamodb', () => {
     };
 });
 
+jest.mock('p-map', () => {
+    const pMap = async <T, R>(items: Iterable<T>, mapper: (item: T) => Promise<R>, opts?: { concurrency?: number }) => {
+        const queue = [...items];
+        const results: R[] = new Array(queue.length);
+        let next = 0;
+        const worker = async () => {
+            while (next < queue.length) {
+                const index = next++;
+                results[index] = await mapper(queue[index]);
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(opts?.concurrency ?? 1, queue.length) }, worker));
+        return results;
+    };
+    return { __esModule: true, default: pMap };
+});
+
 jest.mock('p-retry', () => {
     class AbortError extends Error {}
     const pRetry = async (fn: (attempt: number) => Promise<unknown>, opts?: { retries?: number }) => {
@@ -276,7 +293,7 @@ describe('start floor', () => {
         expect(lockCalls('delete')).toHaveLength(1);
     });
 
-    it('falls back to the stamp when the floor hook throws', async () => {
+    it('skips the sweep and stamps no floor when the floor hook throws', async () => {
         Object.assign(sessionQualityHooks, {
             getSweepStartFloor: async () => {
                 throw new Error('boom');
@@ -285,8 +302,9 @@ describe('start floor', () => {
 
         await handler(undefined, makeContext());
 
-        expect(floorPuts()).toHaveLength(1);
-        expect(iteratorMock).toHaveBeenCalledTimes(1);
+        expect(floorPuts()).toHaveLength(0);
+        expect(iteratorMock).not.toHaveBeenCalled();
+        expect(lockCalls('delete')).toHaveLength(1);
     });
 });
 
@@ -424,6 +442,21 @@ describe('flagged-session notification', () => {
     });
 });
 
+function deferred() {
+    let resolve!: () => void;
+    const promise = new Promise<void>((r) => {
+        resolve = r;
+    });
+    return { promise, resolve };
+}
+
+const tick = () => new Promise<void>((r) => setImmediate(r));
+
+async function until(condition: () => boolean) {
+    for (let i = 0; i < 50 && !condition(); i++) await tick();
+    expect(condition()).toBe(true);
+}
+
 describe('notification delivery', () => {
     function notification(send: () => Promise<void> = async () => undefined) {
         return { send: jest.fn(send) } satisfies PendingNotification;
@@ -482,6 +515,43 @@ describe('notification delivery', () => {
 
         expect(n.send).toHaveBeenCalledTimes(1);
         expect(result.totalProcessed).toBe(1);
+        expect(result.totalFailed).toBe(0);
+    });
+
+    it('does not clear or send for sessions added while a flush is awaiting its write', async () => {
+        servePage([makeSession({ sessionId: 'a' }), makeSession({ sessionId: 'b' })]);
+        const sent: string[] = [];
+        const released: Array<() => void> = [];
+        const bAnalysis = deferred();
+        mockSetSessionsInsightsAnalysisInBatch.mockImplementation(
+            () =>
+                new Promise<void>((resolve) => {
+                    released.push(resolve);
+                })
+        );
+        mockAnalyzeSession.mockImplementation(async (session) => {
+            const id = (session as { sessionId: string }).sessionId;
+            if (id === 'b') await bAnalysis.promise;
+            return { update: makeUpdate(id), notification: notification(async () => void sent.push(id)) };
+        });
+
+        const run = processInsightsWithPipeline(new Date(), makeConfig({ dbBatchSize: 1, insightConcurrency: 2 }), makeContext());
+        await until(() => released.length === 1);
+        expect(mockSetSessionsInsightsAnalysisInBatch.mock.calls[0][0]).toHaveLength(1);
+
+        bAnalysis.resolve();
+        await until(() => released.length === 2);
+        expect(mockSetSessionsInsightsAnalysisInBatch.mock.calls[1][0]).toHaveLength(2);
+
+        released[0]();
+        await until(() => sent.length > 0);
+        await tick();
+        expect(sent).toEqual(['a']);
+
+        released[1]();
+        const result = await run;
+
+        expect(sent).toEqual(['a', 'b']);
         expect(result.totalFailed).toBe(0);
     });
 });

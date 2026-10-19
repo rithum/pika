@@ -152,6 +152,27 @@ describe('truncateForAnalysis', () => {
         expect(estimateAnalysisTokens(messages, { toolFailureSentinel: 'OTHER' })).toBe(withoutSentinel);
     });
 
+    it('keeps tool failures on messages whose traces were collapsed', () => {
+        const failureText = 'TOOL_FAILED {"error":"upstream"}';
+        const messages = [
+            makeMessage({
+                source: 'assistant',
+                message: 'hi',
+                traces: [
+                    toolInvocationTrace('get_order'),
+                    { orchestrationTrace: { observation: { actionGroupInvocationOutput: { text: failureText } } } },
+                    rationaleTrace('r'.repeat(600_000))
+                ]
+            })
+        ];
+
+        const result = truncateForAnalysis(messages, DEFAULT_ANALYSIS_TOKEN_BUDGET, { toolFailureSentinel: 'TOOL_FAILED' });
+
+        expect(result).not.toBe(messages);
+        expect(result[0].traces).toHaveLength(1);
+        expect(result[0].toolFailures).toEqual([failureText]);
+    });
+
     it('threads the sentinel into the budget check', () => {
         const failureTrace = { orchestrationTrace: { observation: { actionGroupInvocationOutput: { text: 'TOOL_FAILED ' + 'e'.repeat(30_000) } } } };
         const messages = [makeMessage({ source: 'assistant', message: 'hi', traces: [failureTrace] })];

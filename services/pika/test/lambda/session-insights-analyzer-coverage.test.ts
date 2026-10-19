@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { ChatSession, RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
+import { INSIGHT_STATUS_INSIGHTS_FAILED, type ChatSession, type RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 
 process.env.AWS_REGION = 'us-east-1';
 process.env.PIKA_S3_BUCKET = 'pika-test-bucket';
@@ -112,7 +112,7 @@ afterEach(() => {
 });
 
 describe('analyzeSession when addFeedback throws after the insights are written', () => {
-    it('returns the update with a cleared insight status and no notification', async () => {
+    it('returns the update marked INSIGHTS_FAILED and no notification', async () => {
         const buildFlaggedSessionNotification = jest.fn(async () => ({ send: async () => undefined }));
         Object.assign(sessionQualityHooks, { buildFlaggedSessionNotification });
         mockBedrockSend.mockResolvedValue(modelResponse(scoring({ critical_issues_present: true }, false)));
@@ -120,7 +120,7 @@ describe('analyzeSession when addFeedback throws after the insights are written'
         const outcome = await analyzeSession(makeSession(), []);
 
         expect(outcome.update).toBeDefined();
-        expect(outcome.update?.insightStatus).toBeNull();
+        expect(outcome.update?.insightStatus).toBe(INSIGHT_STATUS_INSIGHTS_FAILED);
         expect(outcome.update?.lastAnalyzedMessageId).toBe('m2');
         expect(outcome.update?.insightsS3Url).toBe('s3://pika-test-bucket/session-insights/test-app/u1/m2.json');
         expect(outcome.notification).toBeUndefined();
@@ -188,6 +188,20 @@ describe('analyzeSession truncation', () => {
         expect(sentPrompt()).toContain('earlier messages omitted for length');
         expect(sentPrompt()).not.toContain('msg-10-');
         expect(outcome.update?.lastAnalyzedMessageId).toBe('m200');
+    });
+
+    it('keeps tool failures in the prompt when an over-budget session has its traces collapsed', async () => {
+        Object.assign(sessionQualityHooks, { toolFailureBodySentinel: SENTINEL });
+        const failureText = `${SENTINEL} {"error":"upstream"}`;
+        const withTraces = hugeSession.map((m, i) =>
+            i === hugeSession.length - 1 ? { ...m, traces: [failureTrace(failureText), { orchestrationTrace: { rationale: { text: 'r'.repeat(10_000) } } }] } : m
+        );
+        mockGetChatMessagesInSession.mockResolvedValue(withTraces);
+
+        await analyzeSession(makeSession({ lastMessageId: 'm200' }), []);
+
+        expect(sentPrompt()).toContain('earlier messages omitted for length');
+        expect(sentPrompt()).toContain('"toolFailures":["TOOL_FAILED {\\"error\\":\\"upstream\\"}"]');
     });
 });
 

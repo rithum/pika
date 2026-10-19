@@ -92,9 +92,9 @@ describe('default props', () => {
         expect(types.every((t) => t === 'NONE')).toBe(true);
     });
 
-    it('caps the runner at one concurrent execution without a start floor', () => {
+    it('sets no reserved concurrency and no start floor on the runner', () => {
         const runner = runnerFunction(template);
-        expect(runner.ReservedConcurrentExecutions).toBe(1);
+        expect(runner).not.toHaveProperty('ReservedConcurrentExecutions');
         expect(runner.Environment.Variables).not.toHaveProperty('INSIGHTS_START_FLOOR');
     });
 });
@@ -130,8 +130,15 @@ describe('apiAccessLogs, chatAdminApiAuth and startFloor set', () => {
 
     it('passes the start floor to the runner', () => {
         const runner = runnerFunction(template);
-        expect(runner.ReservedConcurrentExecutions).toBe(1);
+        expect(runner).not.toHaveProperty('ReservedConcurrentExecutions');
         expect(runner.Environment.Variables.INSIGHTS_START_FLOOR).toBe(START_FLOOR);
+    });
+});
+
+describe('sessionInsights.reservedConcurrency set', () => {
+    it('reserves that concurrency for the runner', () => {
+        const template = synth('test', { sessionInsights: { startFloor: START_FLOOR, reservedConcurrency: 1 } });
+        expect(runnerFunction(template).ReservedConcurrentExecutions).toBe(1);
     });
 });
 

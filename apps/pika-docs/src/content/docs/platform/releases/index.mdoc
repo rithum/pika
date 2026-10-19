@@ -13,13 +13,12 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - **Session-quality hooks.** `services/pika/src/lib/custom/session-quality-hooks.ts` (sync-protected) controls the insights sweep, the chat-app allowlist, the start floor, flagged-session notifications and thumbs-down queuing, with defaults that keep today's behavior.
 - **A thumbs-down can queue a session for analysis**, from end users and admins, through a hook.
 - **Tool-failure signals** in the insights payload and the Strands `TOOL_FAILED` log key on a consumer-set sentinel.
-- **Optional construct props:** `apiAccessLogs`, `chatAdminApiAuth: 'IAM'` and `sessionInsights.startFloor`, all off by default.
+- **Optional construct props:** `apiAccessLogs`, `chatAdminApiAuth: 'IAM'`, `sessionInsights.startFloor` and `sessionInsights.reservedConcurrency`, all off by default.
 - **`pika-app` 1.9.0** protects `services/pika/src/lib/custom/**` and `services/pika/test/custom/**` by default.
 
 **Upgrade impact**:
 - The Strands trace gate fails closed. A caller that doesn't forward `features.traces` gets content-free trace frames. pika-chat forwards the decision on every request, so its users see no change. Other callers send `features: { traces: { enabled: true } }` to keep content.
 - On its first scheduled sweep after the upgrade, the insights runner records the current time as its start floor and analyzes only sessions active after it. To backfill, set `sessionInsights.startFloor` before that sweep, or delete the `session-insights-runner#start-floor` item from the runner mutex table.
-- The insights runner has reserved concurrency 1. A deploy can fail in an account whose unreserved concurrency is at the minimum, and a manual single-session invoke waits behind a running sweep.
 - Upgrade to `pika-app` 1.9.0 before you sync. Sync uses the installed CLI's protected list, so an older `pika-app` overwrites your hooks file.
 
 **Latest Stable:** `0.33.0` (October 19, 2026)

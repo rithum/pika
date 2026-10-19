@@ -153,7 +153,13 @@ export async function handler(_event: { sessionId?: string; userId?: string } | 
 }
 
 export async function resolveStartFloor(hooks: SessionQualityHooks): Promise<string | null> {
-    const fromHook = await safeHook('getSweepStartFloor', () => hooks.getSweepStartFloor(), undefined);
+    let fromHook: string | undefined;
+    try {
+        fromHook = await hooks.getSweepStartFloor();
+    } catch (err) {
+        console.error('[SESSION-QUALITY] getSweepStartFloor threw; skipping sweep', err);
+        return null;
+    }
     if (fromHook) return fromHook;
     if (process.env.INSIGHTS_START_FLOOR) return process.env.INSIGHTS_START_FLOOR;
 
@@ -311,11 +317,9 @@ export async function processPageWithAtomicCompletion(
 
         try {
             console.log(`[BATCH] Processing insight batch with ${batch.length} sessions (concurrency: ${config.insightConcurrency})`);
-            // Each mapper resolves to the count its threshold flush persisted, so mid-batch flushes are not lost from `processed`.
             const flushedDuringBatch = await pMap(
                 batch,
                 (session): Promise<number> => {
-                    // Not allowlisted: clear only the queue flag; no analysis happened.
                     if (chatAppAllowlist && !chatAppAllowlist.has(session.chatAppId)) {
                         console.log(`[BATCH] Skipping session ${session.sessionId} (chatAppId=${session.chatAppId} not in allowlist) — clearing insight_status`);
                         sessionUpdates.set(session.sessionId, {
@@ -410,11 +414,7 @@ async function processSessionAtomically(
     );
 }
 
-/**
- * Flush pending batches transactionally to maintain consistency
- * Clears the collections after successful processing, then sends notifications (alert-after-persist).
- * Returns the number of session updates persisted.
- */
+/** Persists the current batch, then sends only the flushed sessions' notifications; returns the count persisted. */
 async function flushPendingBatches(
     sessionUpdates: Map<string, ChatSessionLiteForUpdate>,
     feedbackBatch: ChatSessionFeedback[],
@@ -422,35 +422,46 @@ async function flushPendingBatches(
     pendingNotifications: Map<string, PendingNotification>
 ): Promise<number> {
     if (sessionUpdates.size === 0 && feedbackBatch.length === 0) {
-        return 0; // Nothing to flush
+        return 0;
     }
 
-    const updates = [...sessionUpdates.values()];
-    console.log(`Flushing ${updates.length} session updates and ${feedbackBatch.length} feedback records`);
+    const flushedIds = [...sessionUpdates.keys()];
+    const updates = flushedIds.map((id) => sessionUpdates.get(id)!);
+    const feedbackCount = feedbackBatch.length;
+    const feedbackSlice = feedbackBatch.slice(0, feedbackCount);
+    // A retry can replace a session's entry mid-flush; only entries that are still the ones written count as settled.
+    const settledIds: string[] = [];
+    console.log(`Flushing ${updates.length} session updates and ${feedbackCount} feedback records`);
 
     try {
-        // Process both updates transactionally - both succeed or both fail
-        // This maintains consistency between session status and feedback records
         await Promise.all([
             updates.length > 0 ? setSessionsInsightsAnalysisInBatch(updates) : Promise.resolve(),
-            feedbackBatch.length > 0 ? processFeedbackBatch([...feedbackBatch], config) : Promise.resolve()
+            feedbackCount > 0 ? processFeedbackBatch(feedbackSlice, config) : Promise.resolve()
         ]);
 
-        console.log(`Successfully flushed ${updates.length} sessions and ${feedbackBatch.length} feedback records`);
+        console.log(`Successfully flushed ${updates.length} sessions and ${feedbackCount} feedback records`);
 
-        // Clear collections only after successful processing
-        sessionUpdates.clear();
-        feedbackBatch.length = 0;
+        flushedIds.forEach((id, i) => {
+            if (sessionUpdates.get(id) === updates[i]) {
+                sessionUpdates.delete(id);
+                settledIds.push(id);
+            }
+        });
+        feedbackBatch.splice(0, feedbackCount);
     } catch (error) {
         console.error('Batch flush failed:', error);
-        // Don't clear on failure - they'll be retried
         throw error;
     }
 
-    for (const n of [...pendingNotifications.values()]) {
-        await safeHook('PendingNotification.send', () => n.send(), undefined);
+    const toSend: PendingNotification[] = [];
+    for (const id of settledIds) {
+        const n = pendingNotifications.get(id);
+        if (n) {
+            toSend.push(n);
+            pendingNotifications.delete(id);
+        }
     }
-    pendingNotifications.clear();
+    await Promise.all(toSend.map((n) => safeHook('PendingNotification.send', () => n.send(), undefined)));
 
     return updates.length;
 }

@@ -23,6 +23,11 @@ describe('extractToolFailuresFromTraces', () => {
         expect(extractToolFailuresFromTraces(traces, SENTINEL)).toEqual([]);
     });
 
+    it('detects a failure body with leading whitespace', () => {
+        const traces = [{ orchestrationTrace: { observation: { actionGroupInvocationOutput: { text: '  \n TOOL_FAILED tool=x: boom' } } } }];
+        expect(extractToolFailuresFromTraces(traces, SENTINEL)).toEqual(['  \n TOOL_FAILED tool=x: boom']);
+    });
+
     it('returns empty for undefined or empty traces', () => {
         expect(extractToolFailuresFromTraces(undefined, SENTINEL)).toEqual([]);
         expect(extractToolFailuresFromTraces([], SENTINEL)).toEqual([]);

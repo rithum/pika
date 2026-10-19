@@ -68,3 +68,16 @@ def test_detail_truncated_without_newlines(base_hooks, caplog):
     assert len(detail) == DETAIL_LIMIT
     assert '\n' not in detail
     assert detail.startswith('line one x')
+
+
+def test_logging_failure_does_not_change_a_successful_tool_result(override_hooks, caplog):
+    tool = _make_tool()
+    with caplog.at_level(logging.WARNING, logger='agent_loader'), \
+            patch('agent_loader.resolve_hook', side_effect=RuntimeError('hook broke')), \
+            patch('agent_loader.lambda_client') as mock_lambda:
+        mock_lambda.invoke.return_value = {'Payload': _payload('the actual data')}
+        result = tool._tool_func({'toolUseId': 'use-1', 'input': {'query': 'q'}})
+
+    assert result['status'] == 'success'
+    assert result['content'] == [{'text': 'the actual data'}]
+    assert any(r.getMessage() == 'TOOL_FAILED logging failed' for r in caplog.records)

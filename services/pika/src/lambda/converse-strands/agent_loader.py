@@ -503,16 +503,19 @@ def _make_tool(tool_id: str, lambda_arn: str, func_name: str,
             # Emit observation trace so the frontend shows the tool result
             if _trace_callback:
                 _trace_callback(_func_name, body)
-            _sentinel = resolve_hook('TOOL_FAILURE_BODY_SENTINEL')
-            _tool_failed = (response_state and response_state != 'SUCCESS') or (
-                bool(_sentinel) and isinstance(body, str) and body.lstrip().startswith(_sentinel)
-            )
-            if _tool_failed:
-                _detail = (body if isinstance(body, str) else str(body))[:300].replace('\n', ' ')
-                logger.warning(
-                    f"TOOL_FAILED tool={_func_name} session_id={_session_id} "
-                    f"responseState={response_state} detail={_detail}"
+            try:
+                _sentinel = resolve_hook('TOOL_FAILURE_BODY_SENTINEL')
+                _tool_failed = (response_state and response_state != 'SUCCESS') or (
+                    bool(_sentinel) and isinstance(body, str) and body.lstrip().startswith(_sentinel)
                 )
+                if _tool_failed:
+                    _detail = (body if isinstance(body, str) else str(body))[:300].replace('\n', ' ')
+                    logger.warning(
+                        f"TOOL_FAILED tool={_func_name} session_id={_session_id} "
+                        f"responseState={response_state} detail={_detail}"
+                    )
+            except Exception:
+                logger.exception('TOOL_FAILED logging failed')
 
             if response_state and response_state != 'SUCCESS':
                 return {

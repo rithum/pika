@@ -32,6 +32,8 @@ Your file exports `sessionQualityHooks`, a `Partial<SessionQualityHooks>`. Pika 
 | `shouldMarkForInsightsOnThumbsDown(ctx)` | `false` | When an end user or an admin saves a thumbs-down on a session that isn't already queued. `true` queues the session for analysis. |
 | `toolFailureBodySentinel` | `undefined` | A string. A tool response body that starts with it counts as a tool failure in the insights payload. |
 
+Set the sentinel in both custom_hooks.py and session-quality-hooks.ts; each side reads only its own.
+
 `buildFlaggedSessionNotification` receives a `FlaggedSessionEvent` with `session`, `scoring`, `urgent` and `notes`. Pika calls `send()` only after the session's analysis update is saved. If a page is retried, the session's earlier pending update and notification are replaced, so each flagged session produces one notification.
 
 `shouldMarkForInsightsOnThumbsDown` receives a `ThumbsDownContext` with `userId`, `sessionId`, `chatAppId`, `sessionAttributes` and `source` (`'end-user'` or `'admin'`). When the member isn't overridden, a thumbs-down does no extra reads.
@@ -43,7 +45,7 @@ Every call is wrapped. A throw is logged as `[SESSION-QUALITY] <hook> threw` and
 | Hook | On a throw |
 |------|-----------|
 | `isSweepEnabled` | The sweep is skipped |
-| `getSweepStartFloor` | The hook is ignored and the next floor source applies |
+| `getSweepStartFloor` | The sweep is skipped; no floor stamped |
 | `getChatAppAllowlist` | An empty set, so the sweep is skipped |
 | `requiresEmployeeFollowup` | The default predicate |
 | `buildFlaggedSessionNotification` | No notification |
