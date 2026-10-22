@@ -5,7 +5,7 @@ type Fields = { homePageFilterRules: Rule[]; userRoles: string[] };
 
 function run<K extends keyof Fields>(newValue: Fields[K] | null | undefined, existing: Fields[K] | undefined, field: K) {
     const fieldsToUpdate: Partial<Fields> = {};
-    const fieldsToRemove: (keyof Fields)[] = [];
+    const fieldsToRemove: K[] = [];
     handleArrayFieldUpdate<Fields, K>(newValue, existing, field, fieldsToUpdate, fieldsToRemove, true);
     return { fieldsToUpdate, fieldsToRemove };
 }

@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import type { ChatApp, ChatAppOverride } from 'pika-shared/types/chatbot/chatbot-types';
+import type { ChatApp, ChatAppOverride, UserChatAppRule } from 'pika-shared/types/chatbot/chatbot-types';
 
 const getChatAppByIdMock = jest.fn<(id: string) => Promise<ChatApp | undefined>>();
 const updateOverrideMock = jest.fn<(...args: unknown[]) => Promise<ChatAppOverride>>();
@@ -13,7 +13,7 @@ jest.mock('../../src/lib/chat-admin-ddb', () => ({
 
 import { createOrUpdateChatAppOverride } from '../../src/lib/chat-admin-apis';
 
-const RULES = [{ userTypes: ['internal-user'], chatAppUserTypes: ['external-user'] }];
+const RULES: UserChatAppRule[] = [{ userTypes: ['internal-user'], chatAppUserTypes: ['external-user'] }];
 const GRANTS = ['000000001', '000000002'];
 
 function chatApp(override?: Partial<ChatAppOverride>): ChatApp {
