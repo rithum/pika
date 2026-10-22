@@ -2,7 +2,9 @@ import { Sha256 } from '@aws-crypto/sha256-js';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { SignatureV4 } from '@smithy/signature-v4';
 import { error } from '@sveltejs/kit';
+import { resolveApiRoute } from '$lib/custom/local-api-route';
 import { appConfig } from './config';
+import { isDeployedRuntime } from './local-runtime-guard';
 import { checkApiGatewayResponse } from './utils';
 
 interface ApiGatewayRequestParams {
@@ -33,7 +35,7 @@ interface ApiGatewayResponse<T = any> {
 export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promise<ApiGatewayResponse<T>> {
     const { apiId, path, method = 'GET', queryParams, body, headers: customHeaders = {}, errorInfo = { operation: 'operation', resourceName: 'resource' } } = params;
 
-    const baseUrl = `https://${apiId}.execute-api.${appConfig.awsRegion}.amazonaws.com/${appConfig.stage}`;
+    const deployedBaseUrl = `https://${apiId}.execute-api.${appConfig.awsRegion}.amazonaws.com/${appConfig.stage}`;
     let fullPath = `/${path.startsWith('/') ? path.substring(1) : path}`;
 
     if (queryParams) {
@@ -43,51 +45,56 @@ export async function invokeApi<T = any>(params: ApiGatewayRequestParams): Promi
             fullPath += `?${queryString}`;
         }
     }
-    const invokeUrl = new URL(fullPath, baseUrl);
+    const route = resolveApiRoute(
+        appConfig.isLocal && !isDeployedRuntime(),
+        deployedBaseUrl,
+        fullPath,
+        appConfig.getArbitraryConfigValueNotRequired('LOCAL_CHAT_API_BASE_URL')
+    );
+    const invokeUrl = route.url;
 
-    // 2. Prepare the request object for signing
-    // The SignatureV4 class expects an object that adheres to the HttpRequest interface
-    const requestToSign = {
+    const request = {
         method: method,
-        hostname: invokeUrl.hostname,
-        path: invokeUrl.pathname + invokeUrl.search,
-        protocol: invokeUrl.protocol,
-        headers: {
-            Host: invokeUrl.hostname, // Host header is crucial for SigV4
-            ...customHeaders // Include any custom headers provided by the caller
-        } as Record<string, string>,
+        headers: { ...customHeaders } as Record<string, string>,
         body: body ? JSON.stringify(body) : undefined
     };
 
-    // Add Content-Type for requests with a body, if not already set
-    if (body && !requestToSign.headers['Content-Type'] && !requestToSign.headers['content-type']) {
-        requestToSign.headers['Content-Type'] = 'application/json';
+    if (body && !request.headers['Content-Type'] && !request.headers['content-type']) {
+        request.headers['Content-Type'] = 'application/json';
     }
 
-    // 3. Create a SignatureV4 signer instance
-    const signer = new SignatureV4({
-        credentials: defaultProvider(), // Uses the default credential provider chain
-        region: appConfig.awsRegion,
-        service: 'execute-api',
-        sha256: Sha256 // Pass the Sha256 class constructor
-    });
-
-    // 4. Sign the request
-    // The sign method returns a Promise<HttpRequest>
-    const signedRequest = (await signer.sign(requestToSign as any)) as unknown as {
+    let requestToSend: {
         method: string;
         headers: Record<string, string>;
         body?: string;
     };
+    if (route.sign) {
+        const signer = new SignatureV4({
+            credentials: defaultProvider(),
+            region: appConfig.awsRegion,
+            service: 'execute-api',
+            sha256: Sha256
+        });
+        requestToSend = (await signer.sign({
+            ...request,
+            hostname: invokeUrl.hostname,
+            path: invokeUrl.pathname + invokeUrl.search,
+            protocol: invokeUrl.protocol,
+            headers: {
+                Host: invokeUrl.hostname,
+                ...request.headers
+            }
+        } as any)) as unknown as typeof requestToSend;
+    } else {
+        requestToSend = request;
+    }
 
-    // 5. Make the fetch call using the signed request details
     let response;
     try {
-        // Create a new Request object for fetch using the signed details
         const fetchRequest = new Request(invokeUrl.toString(), {
-            method: signedRequest.method,
-            headers: signedRequest.headers,
-            body: signedRequest.body
+            method: requestToSend.method,
+            headers: requestToSend.headers,
+            body: requestToSend.body
         });
         response = await fetch(fetchRequest);
     } catch (error) {

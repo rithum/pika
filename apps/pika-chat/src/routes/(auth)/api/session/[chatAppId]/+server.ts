@@ -1,5 +1,5 @@
 import { getChatSessions } from '$lib/server/chat-apis';
-import { transformSessionAccountContext } from '$lib/custom/session-account-context';
+import { scopeSessionsToAccount } from '$lib/custom/session-account-context';
 import { handleApiGatewayError, isUserContentAdmin } from '$lib/server/utils';
 import { error, json, type RequestHandler } from '@sveltejs/kit';
 
@@ -28,8 +28,9 @@ export const GET: RequestHandler = async ({ request, params, locals }) => {
 
     try {
         const sessions = await getChatSessions(userId, chatAppId);
-        const enrichedSessions = sessions.map((s) => transformSessionAccountContext(s, locals.user));
-        return json({ success: true, sessions: enrichedSessions });
+        // Sessions are keyed on user alone; scoping narrows them to the account this request acts on.
+        const scopedSessions = scopeSessionsToAccount(sessions, locals.user, chatAppId, userId !== user.userId);
+        return json({ success: true, sessions: scopedSessions });
     } catch (e) {
         handleApiGatewayError(e, 'getting chat sessions');
     }

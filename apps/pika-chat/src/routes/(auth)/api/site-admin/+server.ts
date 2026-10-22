@@ -27,7 +27,6 @@ import { siteFeatures } from '$lib/server/custom-site-features';
 import { invokeConverseFunctionUrl } from '$lib/server/invoke-converse-fn-url';
 import { isUserAllowedAdminAccess } from '$lib/custom/site-admin';
 import { mayReceiveTraceContent } from '$lib/custom/trace-content-access';
-import { transformSessionAccountContext } from '$lib/custom/session-account-context';
 import { withholdTraceContent } from '$lib/server/trace-content-guard';
 import { handleApiGatewayError, isUserAllowedToUseEntityAccessControl, isUserAllowedToUseSpecificUserAccessControl } from '$lib/server/utils';
 import { error, json, redirect, type RequestHandler } from '@sveltejs/kit';
@@ -255,8 +254,8 @@ export const POST: RequestHandler = async (event) => {
             }
 
             const search = await searchForSessions(siteAdminReq.search);
-            const enrichedSessions = search.sessions?.map((s) => transformSessionAccountContext(s, user)) ?? search.sessions;
-            return json({ ...search, sessions: enrichedSessions });
+            // Not enriched from the caller: this searches every user's sessions.
+            return json({ ...search, sessions: search.sessions });
         } else if (siteAdminReq.command === 'getSessionAnalytics') {
             if (!('analyticsRequest' in siteAdminReq)) {
                 throw error(400, 'analyticsRequest is required');
