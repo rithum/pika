@@ -47,5 +47,5 @@ export default {
     collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/**/*.svelte'],
 
     // Ignore node_modules, build dirs, integration tests (need AWS), and component tests (Vitest — use test:components)
-    testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/build/', '<rootDir>/.svelte-kit/', '<rootDir>/test/integration/', '<rootDir>/test/components/']
+    testPathIgnorePatterns: ['<rootDir>/node_modules/', '<rootDir>/build/', '<rootDir>/.svelte-kit/', '<rootDir>/test/integration/', '<rootDir>/test/components/', '<rootDir>/test/tools/']
 };

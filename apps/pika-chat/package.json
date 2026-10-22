@@ -6,6 +6,8 @@
     "scripts": {
         "dev": "vite dev",
         "dev:local": "cross-env LOCAL_TOOLS=../../custom-local-action-group-endpoints.json vite dev",
+        "dev:nosudo": "node tools/dev-local/dev.mjs",
+        "env:local": "node tools/gen-env-local/gen-env-local.mjs",
         "copy-pika-config": "mkdir -p infra/build && cp ../../pika-config.ts infra/build",
         "build": "vite build && pnpm run generate-tag-defs-for-build && pnpm run copy-pika-config",
         "preview": "vite preview",
