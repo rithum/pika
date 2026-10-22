@@ -1,7 +1,27 @@
 {
-  "latestVersion": "0.33.1",
-  "currentDevelopment": "0.33.1",
+  "latestVersion": "0.34.0",
+  "currentDevelopment": "0.34.0",
   "releases": [
+    {
+      "version": "0.34.0",
+      "date": "2026-10-22",
+      "status": "released",
+      "breaking": false,
+      "summary": "The access-control panel is redesigned, with role labels, the account ID check and the internal-users label read from site config. A new additionalExternalAccessControl override field adds an additive grant for external users, and chat-app-by-rules now evaluates the session's roles. Six new lib/custom hooks and local development tools are added. The sessions list and site-admin search no longer call transformSessionAccountContext, which is deprecated.",
+      "highlights": [
+        "Added: additionalExternalAccessControl override field, an additive entity grant for external users (step 2.5 of the access ladder).",
+        "Added: siteFeatures.siteAdmin.accessControl (accountIdPattern with its description, roleLabels, predefinedRoles, internalUsersLabel); the pattern is a whole-value match, validated at synth, and enforced in the admin UI and the chat-admin API.",
+        "Added: pikaConfig.sessionIdentityFieldNames.",
+        "Added: six lib/custom hooks with identity defaults: scopeSessionsToAccount, scopePinnedResultsToAccount, rolesForChatUserRecord, mergeStoredRolesIntoSession, mergeChatUserCustomData, resolveChatUserAccountWriteBack.",
+        "Added: local development overrides (resolveApiRoute / LOCAL_CHAT_API_BASE_URL, LOCAL_CONVERSE_FUNCTION_URL, PIKA_LOCAL_MOCK_AUTH with PIKA_LOCAL_MOCK_*), refused inside ECS or Lambda, and the pnpm env:local and pnpm dev:nosudo tools.",
+        "Changed: the access-control panel is redesigned (who-can-access builder, plain-language summary, home-page tile control, slimmer exclusive lists).",
+        "Changed: the sessions list and site-admin search no longer call transformSessionAccountContext (deprecated; use scopeSessionsToAccount). Site-admin search no longer stamps the admin's account on other users' sessions.",
+        "Changed: chat-app-by-rules and session sharing evaluate the session's roles sent by pika-chat instead of the stored ChatUser's. A role changed on the ChatUser record takes effect when the session cookie refreshes, and a provider returning [] roles now denies role-gated apps.",
+        "Changed: homePageFilterRules on an override is updatable through the admin API and validated (user types must be internal-user or external-user).",
+        "Changed: the Strands converse Lambda receives accountIdFieldNames as PIKA_ACCOUNT_ID_FIELD_NAMES.",
+        "Security: with chatAdminApiAuth 'NONE' (the default) every chat-admin API caller is trusted, including the roles and userId it sends. Set 'IAM' in production."
+      ]
+    },
     {
       "version": "0.33.1",
       "date": "2026-10-19",

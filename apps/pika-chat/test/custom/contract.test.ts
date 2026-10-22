@@ -17,6 +17,7 @@ import type {
     ChatMessageForRendering,
     ChatUser,
     ChatSession,
+    PinnedObjAndChatSession,
     RecordOrUndef
 } from 'pika-shared/types/chatbot/chatbot-types';
 
@@ -29,9 +30,21 @@ import { getAdditionalSessionSources, type SessionSource } from '../../src/lib/c
 import { isSessionReadOnly } from '../../src/lib/custom/session-read-only';
 import { resolveRequestUserId, type RequestUserIdResolverContext } from '../../src/lib/custom/request-user-id-resolver';
 import { getSessionEntityValue } from '../../src/lib/custom/session-entity-extraction';
-import { transformSessionAccountContext } from '../../src/lib/custom/session-account-context';
+import {
+    transformSessionAccountContext,
+    scopeSessionsToAccount,
+    scopePinnedResultsToAccount
+} from '../../src/lib/custom/session-account-context';
+import { resolveApiRoute } from '../../src/lib/custom/local-api-route';
+import { resolveLocalConverseRoute } from '../../src/lib/custom/local-converse-route';
 import { transformCustomUserData, onAuthProviderCallback, onBeforeAuth } from '../../src/lib/custom/server-hooks';
-import { shouldBypassChatUserRoleMerge } from '../../src/lib/custom/chat-user-auth';
+import {
+    shouldBypassChatUserRoleMerge,
+    rolesForChatUserRecord,
+    mergeStoredRolesIntoSession,
+    mergeChatUserCustomData,
+    resolveChatUserAccountWriteBack
+} from '../../src/lib/custom/chat-user-auth';
 import { customAdminPages } from '../../src/lib/custom/admin/site-admin-extensions';
 import type { NavItem } from '../../src/lib/client/app/types';
 import { shouldRenderMessage } from '../../src/lib/custom/message-visibility';
@@ -319,6 +332,63 @@ describe('lib/custom hook defaults', () => {
     describe('shouldBypassChatUserRoleMerge', () => {
         it('returns false by default', () => {
             expect(shouldBypassChatUserRoleMerge(mockUser)).toBe(false);
+        });
+    });
+
+    describe('scopeSessionsToAccount', () => {
+        it('returns the sessions array unchanged', () => {
+            const sessions = [mockSession];
+            expect(scopeSessionsToAccount(sessions, mockUser, 'test-app')).toBe(sessions);
+            expect(scopeSessionsToAccount(sessions, mockUser, 'test-app', true)).toBe(sessions);
+        });
+    });
+
+    describe('scopePinnedResultsToAccount', () => {
+        it('returns the results unchanged', () => {
+            const results: PinnedObjAndChatSession[] = [];
+            expect(scopePinnedResultsToAccount(results, mockUser, 'test-app')).toBe(results);
+            expect(scopePinnedResultsToAccount(undefined, mockUser, 'test-app')).toBeUndefined();
+        });
+    });
+
+    describe('chat user persistence hooks', () => {
+        it('rolesForChatUserRecord returns the roles as given', () => {
+            expect(rolesForChatUserRecord([])).toEqual([]);
+            expect(rolesForChatUserRecord(['a'])).toEqual(['a']);
+            expect(rolesForChatUserRecord(undefined)).toBeUndefined();
+        });
+
+        it('mergeStoredRolesIntoSession prefers stored roles', () => {
+            expect(mergeStoredRolesIntoSession(['a'], ['b'])).toEqual(['b']);
+            expect(mergeStoredRolesIntoSession(['a'], undefined)).toEqual(['a']);
+        });
+
+        it('mergeChatUserCustomData prefers the stored ChatUser customData', () => {
+            const stored = { accountId: 'stored' };
+            const fromSession = { accountId: 'session' };
+            expect(mergeChatUserCustomData({ ...mockUser, customData: fromSession }, { ...mockChatUser, customData: stored })).toBe(stored);
+            expect(mergeChatUserCustomData({ ...mockUser, customData: fromSession }, { ...mockChatUser, customData: undefined })).toBe(fromSession);
+        });
+
+        it('resolveChatUserAccountWriteBack writes nothing by default', () => {
+            expect(resolveChatUserAccountWriteBack(mockUser, mockChatUser)).toBeUndefined();
+        });
+    });
+
+    describe('resolveApiRoute', () => {
+        it('routes to the deployed base URL, signed, by default', () => {
+            const route = resolveApiRoute(false, 'https://api.example.com/test', '/api/x');
+            expect(route.sign).toBe(true);
+            expect(route.url.toString()).toBe('https://api.example.com/api/x');
+        });
+    });
+
+    describe('resolveLocalConverseRoute', () => {
+        it('keeps the configured URL and runs in-process when local', () => {
+            expect(resolveLocalConverseRoute(true, 'https://fn.example.com/', undefined)).toEqual({
+                functionUrl: 'https://fn.example.com/',
+                invokeInProcess: true
+            });
         });
     });
 

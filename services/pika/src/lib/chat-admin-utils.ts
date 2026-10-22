@@ -115,7 +115,11 @@ export function handleArrayFieldUpdate<T, K extends keyof T>(
             if (Array.isArray(existingArray)) {
                 // Both are arrays - compare them properly
                 const arraysAreDifferent =
-                    newArray.length !== existingArray.length || !newArray.every((item) => existingArray.includes(item)) || !existingArray.every((item) => newArray.includes(item));
+                    fieldName === 'homePageFilterRules'
+                        ? JSON.stringify(newArray) !== JSON.stringify(existingArray)
+                        : newArray.length !== existingArray.length ||
+                          !newArray.every((item) => existingArray.includes(item)) ||
+                          !existingArray.every((item) => newArray.includes(item));
 
                 if (arraysAreDifferent) {
                     fieldsToUpdate[fieldName] = newArray as T[K];

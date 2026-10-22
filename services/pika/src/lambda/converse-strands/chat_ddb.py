@@ -31,6 +31,24 @@ def _account_id_field_names() -> list[str]:
     return list(DEFAULT_ACCOUNT_ID_FIELDS)
 
 
+def _session_identity_field_names() -> tuple[str, ...]:
+    raw = os.environ.get('PIKA_SESSION_IDENTITY_FIELD_NAMES', '')
+    return tuple(name.strip() for name in raw.split(',') if name.strip())
+
+
+def session_identity_of(custom_data: dict | None) -> dict | None:
+    """Configured session-identity keys present in custom_data, or None when there are none."""
+    if not isinstance(custom_data, dict):
+        return None
+    picked = {k: custom_data[k] for k in _session_identity_field_names() if custom_data.get(k) is not None}
+    return picked or None
+
+
+def _has_session_identity(session: dict) -> bool:
+    attrs = session.get('session_attributes')
+    return isinstance(attrs, dict) and any(f in attrs for f in _session_identity_field_names())
+
+
 def _present_account_value(v) -> bool:
     """True for a usable account id. Decimal counts because boto3 returns every DynamoDB number as Decimal."""
     return (isinstance(v, str) and len(v) > 0) or isinstance(v, (int, float, Decimal))
@@ -100,7 +118,8 @@ def _now_iso() -> str:
 def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id: str,
                    agent_id: str, chat_app_id: str, source: str = 'user',
                    user_type: str | None = None,
-                   session_attributes: dict | None = None, *, _retried: bool = False) -> dict:
+                   session_attributes: dict | None = None,
+                   session_identity: dict | None = None, *, _retried: bool = False) -> dict:
     """Create or retrieve a chat session. Matches ensureChatSession() in chat-apis.ts.
 
     Creates the session with the fields the frontend needs, including the
@@ -108,6 +127,8 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
     session_attributes map (account context, currentDate, etc.) that
     persisted-session readers such as session insights expect. The TypeScript
     path writes session_attributes on create.
+
+    `session_identity` backfills the configured identity keys independently of account context, so a session that already has an account still gains them.
     """
     table = dynamodb_resource.Table(table_name)
 
@@ -120,64 +141,74 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
         if not isinstance(existing_attrs, dict):
             existing_attrs = {}
 
+        backfill = {}
         if session_attributes and not _has_account_context(existing):
-            backfill = {
+            backfill.update({
                 k: session_attributes[k]
                 for k in (*_account_id_field_names(), 'accountType', 'account_type', 'accountName', 'account_name', 'account')
                 if session_attributes.get(k) is not None and k not in existing_attrs
-            }
-            if backfill:
-                names = {'#sa': 'session_attributes'}
-                values = {}
-                set_clauses = []
-                for i, (attr, value) in enumerate(backfill.items()):
-                    names[f'#k{i}'] = attr
-                    values[f':v{i}'] = value
-                    set_clauses.append(f'#sa.#k{i} = :v{i}')
-                backfill_placeholders = {attr: f'#k{i}' for i, attr in enumerate(backfill)}
-                guards = ['attribute_exists(session_id)']
-                alias_index = 0
-                for field in dict.fromkeys(_account_id_field_names()):
-                    if field in existing_attrs:
-                        continue
-                    placeholder = backfill_placeholders.get(field)
-                    if placeholder is None:
-                        placeholder = f'#a{alias_index}'
-                        alias_index += 1
-                        names[placeholder] = field
-                    guards.append(f'attribute_not_exists(#sa.{placeholder})')
-                guards.extend(
-                    f'attribute_not_exists(#sa.{p})'
-                    for attr, p in backfill_placeholders.items()
-                    if attr not in _account_id_field_names()
-                )
-                if not isinstance(existing.get('session_attributes'), dict):
-                    try:
-                        table.update_item(
-                            Key=key,
-                            UpdateExpression='SET #sa = :empty',
-                            ConditionExpression='attribute_exists(session_id) AND (attribute_not_exists(#sa) OR NOT attribute_type(#sa, :map))',
-                            ExpressionAttributeNames={'#sa': 'session_attributes'},
-                            ExpressionAttributeValues={':empty': {}, ':map': 'M'},
-                        )
-                    except ClientError as e:
-                        if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
-                            raise
+            })
+        pins_account = bool(backfill)
+        if session_identity and not _has_session_identity(existing):
+            backfill.update({k: v for k, v in session_identity.items() if v is not None and k not in existing_attrs})
+        if backfill:
+            names = {'#sa': 'session_attributes'}
+            values = {}
+            set_clauses = []
+            for i, (attr, value) in enumerate(backfill.items()):
+                names[f'#k{i}'] = attr
+                values[f':v{i}'] = value
+                set_clauses.append(f'#sa.#k{i} = :v{i}')
+            backfill_placeholders = {attr: f'#k{i}' for i, attr in enumerate(backfill)}
+            guards = ['attribute_exists(session_id)']
+            alias_index = 0
+            for field in dict.fromkeys(_account_id_field_names()):
+                if field in existing_attrs:
+                    continue
+                placeholder = backfill_placeholders.get(field)
+                if placeholder is None:
+                    placeholder = f'#a{alias_index}'
+                    alias_index += 1
+                    names[placeholder] = field
+                guards.append(f'attribute_not_exists(#sa.{placeholder})')
+            guards.extend(
+                f'attribute_not_exists(#sa.{p})'
+                for attr, p in backfill_placeholders.items()
+                if attr not in _account_id_field_names()
+            )
+            if not isinstance(existing.get('session_attributes'), dict):
                 try:
                     table.update_item(
                         Key=key,
-                        UpdateExpression='SET ' + ', '.join(set_clauses),
-                        ConditionExpression=' AND '.join(guards),
-                        ExpressionAttributeNames=names,
-                        ExpressionAttributeValues=values,
+                        UpdateExpression='SET #sa = :empty',
+                        ConditionExpression='attribute_exists(session_id) AND (attribute_not_exists(#sa) OR NOT attribute_type(#sa, :map))',
+                        ExpressionAttributeNames={'#sa': 'session_attributes'},
+                        ExpressionAttributeValues={':empty': {}, ':map': 'M'},
                     )
                 except ClientError as e:
-                    if e.response['Error']['Code'] != 'ConditionalCheckFailedException' or _retried:
-                        raise
+                    if e.response['Error']['Code'] != 'ConditionalCheckFailedException':
+                        if pins_account:
+                            raise
+                        logger.warning('ensure_session identity backfill failed for session %s: %s', session_id, e)
+                        return existing
+            try:
+                table.update_item(
+                    Key=key,
+                    UpdateExpression='SET ' + ', '.join(set_clauses),
+                    ConditionExpression=' AND '.join(guards),
+                    ExpressionAttributeNames=names,
+                    ExpressionAttributeValues=values,
+                )
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'ConditionalCheckFailedException' and not _retried:
                     return ensure_session(dynamodb_resource, table_name, user_id, session_id, agent_id, chat_app_id,
                                           source=source, user_type=user_type, session_attributes=session_attributes,
-                                          _retried=True)
-                existing['session_attributes'] = {**existing_attrs, **backfill}
+                                          session_identity=session_identity, _retried=True)
+                if pins_account:
+                    raise
+                logger.warning('ensure_session identity backfill failed for session %s: %s', session_id, e)
+                return existing
+            existing['session_attributes'] = {**existing_attrs, **backfill}
         return existing
 
     now_iso = _now_iso()

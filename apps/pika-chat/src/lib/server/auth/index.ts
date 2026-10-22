@@ -1,6 +1,7 @@
 import { appConfig } from '$lib/server/config';
 import type { RecordOrUndef } from 'pika-shared/types/chatbot/chatbot-types';
 import DefaultAuthProvider from './default-provider';
+import { isDeployedRuntime } from '../local-runtime-guard';
 import type { AuthProvider } from './types';
 import { ForceUserToReauthenticateError, NotAuthenticatedError } from './types';
 
@@ -11,6 +12,13 @@ export { ForceUserToReauthenticateError, NotAuthenticatedError };
  * Falls back to the default mock provider if no provider is found
  */
 export async function loadAuthProvider(): Promise<AuthProvider<RecordOrUndef, RecordOrUndef>> {
+    // Local-only: never true in a deployed task (isLocal and isDeployedRuntime both guard it).
+    if (appConfig.isLocal && !isDeployedRuntime() && appConfig.getArbitraryConfigValueNotRequired('PIKA_LOCAL_MOCK_AUTH') === 'true') {
+        console.log('WARNING!! PIKA_LOCAL_MOCK_AUTH is set - using INSECURE mock authentication. Never set this outside local development.');
+        const { default: LocalMockAuthProvider } = await import('$lib/custom/local-mock-auth-provider');
+        return addDefaultGetUserCognitoIdentityMethodIfSupposedTo(new LocalMockAuthProvider(appConfig.stage));
+    }
+
     let authProvider: any;
 
     try {

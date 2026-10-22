@@ -5,7 +5,12 @@ import { SignatureV4 } from '@smithy/signature-v4';
 import type { ConverseRequest, ConverseRequestWithCommand, RecordOrUndef, SimpleAuthenticatedUser } from 'pika-shared/types/chatbot/chatbot-types';
 import { convertToJwtString } from 'pika-shared/util/jwt';
 import { PassThrough } from 'stream';
+import { resolveLocalConverseRoute } from '$lib/custom/local-converse-route';
 import { appConfig } from './config';
+import { isDeployedRuntime } from './local-runtime-guard';
+
+const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
+const LAMBDA_URL_HOST = /^[a-z0-9]+\.lambda-url\.[a-z0-9-]+\.on\.aws$/;
 
 interface ConverseFunctionResponse {
     body: ReadableStream<Uint8Array> | null;
@@ -26,7 +31,15 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
     request: ConverseRequest | ConverseRequestWithCommand,
     simpleUser: SimpleAuthenticatedUser<T>
 ): Promise<ConverseFunctionResponse> {
-    const functionUrl = appConfig.converseFnUrl;
+    const isLocal = appConfig.isLocal && !isDeployedRuntime();
+    const route = resolveLocalConverseRoute(isLocal, appConfig.converseFnUrl, appConfig.getArbitraryConfigValueNotRequired('LOCAL_CONVERSE_FUNCTION_URL'));
+    if (route.functionUrl !== appConfig.converseFnUrl) {
+        const { hostname } = new URL(route.functionUrl);
+        if (!LOOPBACK_HOSTS.has(hostname) && !LAMBDA_URL_HOST.test(hostname)) {
+            throw new Error(`LOCAL_CONVERSE_FUNCTION_URL must be a loopback or Lambda function URL, got ${hostname}`);
+        }
+    }
+    const functionUrl = route.functionUrl;
     const region = appConfig.awsRegion;
 
     // Parse the Function URL to get hostname and path
@@ -67,7 +80,7 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
     // Make the fetch call using the signed request details
     let response: Response;
     try {
-        if (appConfig.isLocal) {
+        if (route.invokeInProcess) {
             let name = appConfig.pikaServiceProjNameKebabCase;
             let stage = appConfig.stage;
             process.env.AWS_REGION = process.env.AWS_REGION ?? 'us-east-1';

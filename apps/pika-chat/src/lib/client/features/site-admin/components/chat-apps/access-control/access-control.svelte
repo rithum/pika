@@ -1,14 +1,14 @@
 <script lang="ts">
     import type { AppState } from '$lib/client/app/app.state.svelte';
-    import { type ChatApp, type UserType } from 'pika-shared/types/chatbot/chatbot-types';
-    import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
+    import type { ChatApp, UserType } from 'pika-shared/types/chatbot/chatbot-types';
     import { getContext } from 'svelte';
     import ConfigSection from '../../config-section.svelte';
+    import { accessControlConfigFromSiteFeatures } from './access-control-config';
+    import { summarizeAccessControl, summarizeHomeTileVisibility, validateAccessControl } from './access-control-summary';
     import ExclusiveEntityAccessControl from './exclusive-entity-access-control.svelte';
     import ExclusiveUserAccessControl from './exclusive-user-access-control.svelte';
-    import GeneralAccessControl from './general-access-control.svelte';
-
-    type AccessMode = 'general' | 'exclusive-entity' | 'exclusive-user';
+    import HomePageTileControl from './home-page-tile-control.svelte';
+    import WhoCanAccessBuilder from './who-can-access-builder.svelte';
 
     interface Props {
         chatApp: ChatApp;
@@ -35,286 +35,117 @@
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
 
-    // User's intended access mode (state, not derived)
-    let accessMode = $state<AccessMode>('general');
     let app = $derived(isOverrideMode ? chatApp : chatAppOriginal);
 
-    let entityDisplaySingularLower = $derived.by(() => {
-        let val =
-            siteAdmin.siteFeatures?.entity?.enabled &&
-            siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled
-                ? siteAdmin.siteFeatures?.entity?.displayNameSingular
-                : undefined;
-        if (val) {
-            return val.charAt(0).toLowerCase() + val.slice(1);
-        } else {
-            return 'entity';
-        }
-    });
-    let entityDisplaySingularUpper = $derived.by(() => {
-        let val =
-            siteAdmin.siteFeatures?.entity?.enabled &&
-            siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled
-                ? siteAdmin.siteFeatures?.entity?.displayNameSingular
-                : undefined;
-        if (val) {
-            return val.charAt(0).toUpperCase() + val.slice(1);
-        } else {
-            return 'Entity';
-        }
-    });
+    let rulesForSummary = $derived(app.override ?? app);
+
+    let accessControlConfig = $derived(accessControlConfigFromSiteFeatures(siteAdmin.siteFeatures));
+    let entitySingular = $derived(siteAdmin.siteFeatures?.entity?.displayNameSingular || 'account ID');
 
     let entityDisplayPluralLower = $derived.by(() => {
-        let val =
-            siteAdmin.siteFeatures?.entity?.enabled &&
-            siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled
+        const val =
+            siteAdmin.siteFeatures?.entity?.enabled && siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled
                 ? siteAdmin.siteFeatures?.entity?.displayNamePlural
                 : undefined;
-        if (val) {
-            return val.charAt(0).toLowerCase() + val.slice(1);
-        } else {
-            return 'entities';
-        }
+        return val ? val.charAt(0).toLowerCase() + val.slice(1) : 'accounts';
     });
 
-    let entityDisplayPluralUpper = $derived.by(() => {
-        let val =
-            siteAdmin.siteFeatures?.entity?.enabled &&
-            siteAdmin.siteFeatures?.siteAdmin?.supportUserEntityAccessControl?.enabled
-                ? siteAdmin.siteFeatures?.entity?.displayNamePlural
-                : undefined;
-        if (val) {
-            return val.charAt(0).toUpperCase() + val.slice(1);
-        } else {
-            return 'Entities';
-        }
-    });
+    let summary = $derived(summarizeAccessControl(rulesForSummary, entityDisplayPluralLower, accessControlConfig));
+    let validation = $derived(validateAccessControl(rulesForSummary, accessControlConfig));
 
-    // Initialize access mode based on existing data (only once)
-    let initialized = $state(false);
+    // Mirrors the server's `override?.userTypes || chatApp.userTypes || []`: an empty override wins.
+    let effectiveAppUserTypes = $derived((app.override?.userTypes || app.userTypes || []) as UserType[]);
+    let siteTileRules = $derived(siteAdmin.siteFeatures?.homePage?.linksToChatApps?.userChatAppRules);
+    let tileSummary = $derived(
+        summarizeHomeTileVisibility(
+            { ...rulesForSummary, homePageFilterRules: app.override?.homePageFilterRules ?? undefined },
+            effectiveAppUserTypes,
+            siteTileRules
+        )
+    );
+
     $effect(() => {
-        if (!initialized) {
-            const exclusiveUserIdAccessControl = app.override?.exclusiveUserIdAccessControl;
-            const exclusiveExternalAccessControl = app.override?.exclusiveExternalAccessControl;
-            const exclusiveInternalAccessControl = app.override?.exclusiveInternalAccessControl;
-
-            // Determine initial access mode based on data (priority: user IDs > entities > general)
-            if (exclusiveUserIdAccessControl && exclusiveUserIdAccessControl.length > 0) {
-                accessMode = 'exclusive-user';
-            } else if (
-                (exclusiveExternalAccessControl && exclusiveExternalAccessControl.length > 0) ||
-                (exclusiveInternalAccessControl && exclusiveInternalAccessControl.length > 0)
-            ) {
-                accessMode = 'exclusive-entity';
-                // Initialize exclusiveEntityOn based on existing data
-                if (exclusiveInternalAccessControl && exclusiveInternalAccessControl.length > 0) {
-                    exclusiveEntityOn = [...exclusiveEntityOn, 'internal-user'];
-                }
-                if (exclusiveExternalAccessControl && exclusiveExternalAccessControl.length > 0) {
-                    exclusiveEntityOn = [...exclusiveEntityOn, 'external-user'];
-                }
-            } else {
-                accessMode = 'general';
-            }
-            initialized = true;
-        }
-    });
-
-    // Validation for the chosen access mode
-    let validationErrors = $derived.by(() => {
-        const errors: string[] = [];
-
-        const exclusiveExternalAccessControl = app.override?.exclusiveExternalAccessControl ?? [];
-        const exclusiveInternalAccessControl = app.override?.exclusiveInternalAccessControl ?? [];
-        const exclusiveUserIdAccessControl = app.override?.exclusiveUserIdAccessControl ?? [];
-
-        if (accessMode === 'exclusive-entity') {
-            if (exclusiveExternalAccessControl.length === 0 && exclusiveInternalAccessControl.length === 0) {
-                errors.push(
-                    `At least one ${entityDisplaySingularLower} must be specified for either internal or external users in exclusive ${entityDisplaySingularLower} mode.`
-                );
-            } else {
-                if (exclusiveEntityOn.includes('internal-user') && exclusiveInternalAccessControl.length === 0) {
-                    errors.push(
-                        `Provide at least one ${entityDisplaySingularLower} for internal users or turn off exclusive internal users.`
-                    );
-                }
-
-                if (exclusiveEntityOn.includes('external-user') && exclusiveExternalAccessControl.length === 0) {
-                    errors.push(
-                        `Provide at least one ${entityDisplaySingularLower} for external users or turn off exclusive external users.`
-                    );
-                }
-            }
-        } else if (accessMode === 'exclusive-user') {
-            if (exclusiveUserIdAccessControl.length === 0) {
-                errors.push('At least one user ID must be specified in exclusive user mode.');
-            }
-        } else if (accessMode === 'general') {
-            const obj = (isOverrideMode ? chatApp.override : chatApp) ?? ({} as ChatApp);
-            if ((obj.userTypes ?? []).length === 0 && (obj.userRoles ?? []).length === 0) {
-                errors.push(
-                    'At least one user type or role must be specified in general access mode or no one will be able to access the chat app.'
-                );
-            }
-        }
-
-        return errors;
-    });
-
-    // Clear incompatible data when access mode changes (only if initialized and in override mode)
-    $effect(() => {
-        if (!initialized || !isOverrideMode) return;
-
-        if (!app.override) {
-            app.override = { enabled: true };
-        }
-
-        // Clear data that doesn't apply to the new mode
-        if (accessMode === 'general') {
-            app.override.exclusiveExternalAccessControl = [];
-            app.override.exclusiveInternalAccessControl = [];
-            app.override.exclusiveUserIdAccessControl = [];
-            exclusiveEntityOn = [];
-        } else if (accessMode === 'exclusive-entity') {
-            app.override.exclusiveUserIdAccessControl = [];
-            app.userTypes = undefined;
-            app.userRoles = undefined;
-            app.applyRulesAs = undefined;
-        } else if (accessMode === 'exclusive-user') {
-            app.override.exclusiveExternalAccessControl = [];
-            app.override.exclusiveInternalAccessControl = [];
-            app.override.exclusiveUserIdAccessControl = [];
-            exclusiveEntityOn = [];
-            app.userTypes = undefined;
-            app.userRoles = undefined;
-            app.applyRulesAs = undefined;
-        }
-    });
-
-    // Handle interaction between exclusive entity access and general access control
-    $effect(() => {
-        const notInitialized = !initialized;
-        const notOverrideMode = !isOverrideMode;
-        const notExclusiveEntity = accessMode !== 'exclusive-entity';
-        if (notInitialized || notOverrideMode || notExclusiveEntity) return;
-
-        // When a user type is enabled for exclusive entity access, remove it from general access userTypes
-        exclusiveEntityOn.forEach((userType) => {
-            if ((app.userTypes ?? []).includes(userType)) {
-                app.userTypes = (app.userTypes ?? []).filter((t) => t !== userType);
-            }
-        });
+        setValid(validation.errors.length === 0);
     });
 
     let exclusiveEntityOn = $state<UserType[]>([]);
-
+    let exclusiveEntityOnInitialized = $state(false);
     $effect(() => {
-        setValid(validationErrors.length === 0);
+        if (exclusiveEntityOnInitialized) return;
+        const next: UserType[] = [];
+        if ((app.override?.exclusiveInternalAccessControl ?? []).length > 0) {
+            next.push('internal-user');
+        }
+        if ((app.override?.exclusiveExternalAccessControl ?? []).length > 0) {
+            next.push('external-user');
+        }
+        exclusiveEntityOn = next;
+        exclusiveEntityOnInitialized = true;
     });
 </script>
 
-<ConfigSection
-    title="Access Control"
-    expanded={accessExpanded}
-    onToggle={onToggleAccessSection}
-    hasErrors={validationErrors.length > 0}
->
-    <div class="space-y-6">
-        <!-- Access Mode Selector -->
-        <SimpleDropdown
-            bind:value={accessMode}
-            wrapperClasses="w-[300px]"
-            disabled={!isOverrideMode || disabled}
-            mapping={{
-                value: (item) => item as string,
-                label: (item) => {
-                    if (item === 'general') {
-                        return 'General Access Control';
-                    } else if (item === 'exclusive-entity') {
-                        return `Exclusive ${entityDisplaySingularUpper} Access`;
-                    } else if (item === 'exclusive-user') {
-                        return 'Exclusive User Access';
-                    }
-                    return '';
-                },
-                secondaryLabel: (item) => {
-                    if (item === 'general') {
-                        return 'This grants access based on user types and roles. Exclusive settings are not active.';
-                    } else if (item === 'exclusive-entity') {
-                        return `Grants access to users exclusively from specified ${entityDisplayPluralLower}. You can mix exclusive ${entityDisplaySingularLower} access for one user type with general access control for the other user type.`;
-                    } else if (item === 'exclusive-user') {
-                        return 'Only the specified users will be granted access. All other access settings are ignored.';
-                    }
-                    return '';
-                },
-            }}
-            options={['general', 'exclusive-entity', 'exclusive-user']}
-            dontShowSearchInput={true}
-            popupWidthClasses="w-[300px]"
-        />
+<ConfigSection title="Access Control" expanded={accessExpanded} onToggle={onToggleAccessSection} hasErrors={validation.errors.length > 0}>
+    <div class="flex gap-6">
+        <div class="flex-1 space-y-6">
+            <WhoCanAccessBuilder bind:chatApp {chatAppOriginal} {isOverrideMode} {disabled} {accessControlConfig} {entitySingular} />
 
-        <!-- Validation Errors -->
-        {#if validationErrors.length > 0}
-            <div class="p-3 bg-danger-bg border border-destructive/20 rounded">
-                {#each validationErrors as error}
-                    <p class="text-sm text-destructive">{error}</p>
-                {/each}
+            <HomePageTileControl bind:chatApp {chatAppOriginal} {isOverrideMode} {disabled} {effectiveAppUserTypes} siteRules={siteTileRules} />
+
+            <div class="border border-warning/40 bg-warning-bg/40 rounded-lg p-4 space-y-2">
+                <h3 class="text-sm font-semibold text-warning">Restriction / pilot mode</h3>
+                <p class="text-xs text-muted-foreground">
+                    Optional. Restrict a population to ONLY the accounts listed here — this overrides the role/type rules
+                    above for that population. Leave both empty (no accounts listed) to use the rules above normally.
+                </p>
+                <ExclusiveEntityAccessControl bind:chatApp {chatAppOriginal} bind:exclusiveEntityOn {isOverrideMode} {chatAppId} {disabled} />
             </div>
-        {/if}
 
-        <!-- Mode-specific content -->
-        {#if accessMode === 'general'}
-            <GeneralAccessControl
-                bind:rulesObj={
-                    () => (isOverrideMode ? chatApp.override : chatApp),
-                    (value) => {
-                        chatApp.override = value;
-                        // console.log('here');
-                        // assert(isOverrideMode, 'onRulesObjChange should only be called in override mode');
-                        // assert(chatApp.override, 'chatApp.override should be defined');
-                        // assert(value, 'value should be defined');
-                        // console.log('value', value);
-                        // let enabled: boolean;
-                        // let userTypes: UserType[] | undefined;
-                        // let userRoles: string[] | undefined;
-                        // let applyRulesAs: ApplyRulesAs | undefined;
-                        // if ('enabled' in value) {
-                        //     enabled = value.enabled;
-                        // } else {
-                        //     enabled = true;
-                        // }
-                        // if ('userTypes' in value) {
-                        //     userTypes = value.userTypes;
-                        // }
-                        // if ('userRoles' in value) {
-                        //     userRoles = value.userRoles;
-                        // }
-                        // if ('applyRulesAs' in value) {
-                        //     applyRulesAs = value.applyRulesAs;
-                        // }
-                        // chatApp.override.enabled = enabled;
-                        // chatApp.override.userTypes = userTypes;
-                        // chatApp.override.userRoles = userRoles;
-                        // chatApp.override.applyRulesAs = applyRulesAs;
-                    }
-                }
-                rulesObjOriginal={chatAppOriginal}
-                {isOverrideMode}
-                sectionTitle=""
-            />
-        {:else if accessMode === 'exclusive-entity'}
-            <ExclusiveEntityAccessControl
-                bind:chatApp
-                {chatAppOriginal}
-                bind:exclusiveEntityOn
-                {isOverrideMode}
-                {chatAppId}
-                {validationErrors}
-                {disabled}
-            />
-        {:else if accessMode === 'exclusive-user'}
-            <ExclusiveUserAccessControl bind:chatApp {chatAppOriginal} {validationErrors} {isOverrideMode} {disabled} />
-        {/if}
+            <div class="border border-destructive/40 bg-danger-bg/40 rounded-lg p-4 space-y-2">
+                <h3 class="text-sm font-semibold text-destructive">Exclusive user ID access (nuclear option)</h3>
+                <p class="text-xs text-muted-foreground">
+                    Optional. If you list any user IDs here, ONLY those user IDs — internal or external — get access.
+                    Everything else on this page, above and below, is ignored while this list is non-empty.
+                </p>
+                <ExclusiveUserAccessControl bind:chatApp {chatAppOriginal} {isOverrideMode} {disabled} />
+            </div>
+        </div>
+
+        <div class="w-[320px] shrink-0 space-y-3">
+            <div class="p-3 bg-info-bg border border-info/20 rounded-lg">
+                <h3 class="text-sm font-medium text-foreground mb-2">Who can access</h3>
+                <ul class="space-y-1 text-sm text-info list-disc list-inside">
+                    {#each summary.lines as line}
+                        <li class={line.tone === 'danger' ? 'text-destructive font-medium list-none' : line.tone === 'warning' ? 'text-warning font-medium' : ''}>
+                            {line.text}
+                        </li>
+                    {/each}
+                </ul>
+            </div>
+
+            <div class="p-3 bg-info-bg border border-info/20 rounded-lg">
+                <h3 class="text-sm font-medium text-foreground mb-2">Home page tile</h3>
+                <ul class="space-y-1 text-sm text-info list-disc list-inside">
+                    {#each tileSummary.lines as line}
+                        <li class={line.tone === 'warning' ? 'text-warning font-medium' : ''}>{line.text}</li>
+                    {/each}
+                </ul>
+            </div>
+
+            {#if summary.warnings.length > 0 || tileSummary.warnings.length > 0}
+                <div class="p-3 bg-warning-bg border border-warning/30 rounded-lg space-y-1">
+                    {#each [...summary.warnings, ...tileSummary.warnings] as warning}
+                        <p class="text-xs text-warning">{warning}</p>
+                    {/each}
+                </div>
+            {/if}
+
+            {#if validation.errors.length > 0}
+                <div class="p-3 bg-danger-bg border border-destructive/20 rounded">
+                    {#each validation.errors as error}
+                        <p class="text-sm text-destructive">{error}</p>
+                    {/each}
+                </div>
+            {/if}
+        </div>
     </div>
 </ConfigSection>

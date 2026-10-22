@@ -10,17 +10,10 @@
         chatApp: ChatApp;
         chatAppOriginal: ChatApp;
         isOverrideMode: boolean;
-        validationErrors: string[];
-        disabled: boolean;
+        disabled?: boolean;
     }
 
-    let {
-        chatApp = $bindable(),
-        chatAppOriginal,
-        isOverrideMode,
-        validationErrors,
-        disabled = false,
-    }: Props = $props();
+    let { chatApp = $bindable(), chatAppOriginal, isOverrideMode, disabled = false }: Props = $props();
 
     const appState = getContext<AppState>('appState');
     const siteAdmin = appState.siteAdmin;
@@ -39,104 +32,75 @@
             </p>
         </div>
     {:else}
-        <div class="flex gap-10">
-            <div class="flex-1 space-y-4">
-                <Label class="text-sm font-medium">Users</Label>
-                <List
-                    classes="w-[300px] h-[200px]"
-                    items={(app.override?.exclusiveUserIdAccessControl ?? []) as unknown as ChatUserLite[]}
-                    mapping={{
-                        value: (item) => (typeof item === 'string' ? item : item.userId),
-                        label: (item) =>
-                            typeof item === 'string'
-                                ? item
-                                : item.firstName && item.lastName
-                                  ? `${item.firstName} ${item.lastName}`
-                                  : item.userId,
-                    }}
-                    allowSelection={true}
-                    multiSelect={true}
-                    disabled={!isOverrideMode || disabled}
-                    emptyMessage="No users specified"
-                    addRemove={{
-                        addItem: (item) => {
-                            assert(isOverrideMode, 'isOverrideMode must be true');
-                            assert(chatApp.override, 'chatApp.override must be defined');
+        <div class="flex-1 space-y-4">
+            <Label class="text-sm font-medium">Users</Label>
+            <List
+                classes="w-[300px] h-[200px]"
+                items={(app.override?.exclusiveUserIdAccessControl ?? []) as unknown as ChatUserLite[]}
+                mapping={{
+                    value: (item) => (typeof item === 'string' ? item : item.userId),
+                    label: (item) =>
+                        typeof item === 'string'
+                            ? item
+                            : item.firstName && item.lastName
+                              ? `${item.firstName} ${item.lastName}`
+                              : item.userId,
+                }}
+                allowSelection={true}
+                multiSelect={true}
+                disabled={!isOverrideMode || disabled}
+                emptyMessage="No users specified"
+                addRemove={{
+                    addItem: (item) => {
+                        assert(isOverrideMode, 'isOverrideMode must be true');
+                        assert(chatApp.override, 'chatApp.override must be defined');
 
-                            if (!chatApp.override.exclusiveUserIdAccessControl) {
-                                chatApp.override.exclusiveUserIdAccessControl = [];
-                            }
+                        if (!chatApp.override.exclusiveUserIdAccessControl) {
+                            chatApp.override.exclusiveUserIdAccessControl = [];
+                        }
 
-                            const value = typeof item === 'string' ? item : item.userId;
-                            if (!chatApp.override.exclusiveUserIdAccessControl.includes(value)) {
-                                chatApp.override.exclusiveUserIdAccessControl.push(value);
-                            }
+                        const value = typeof item === 'string' ? item : item.userId;
+                        if (!chatApp.override.exclusiveUserIdAccessControl.includes(value)) {
+                            chatApp.override.exclusiveUserIdAccessControl.push(value);
+                        }
+                    },
+                    removeItem: (item) => {
+                        assert(isOverrideMode, 'isOverrideMode must be true');
+                        assert(chatApp.override, 'chatApp.override must be defined');
+
+                        if (!chatApp.override.exclusiveUserIdAccessControl) {
+                            return;
+                        }
+
+                        const value = typeof item === 'string' ? item : item.userId;
+                        if (chatApp.override.exclusiveUserIdAccessControl.includes(value)) {
+                            chatApp.override.exclusiveUserIdAccessControl =
+                                chatApp.override.exclusiveUserIdAccessControl.filter((r) => r !== value);
+                        }
+                    },
+                    search: {
+                        onSearchValueChanged: async (value) => {
+                            await siteAdmin.sendSiteAdminCommand({
+                                command: 'getValuesForUserAutoComplete',
+                                valueProvidedByUser: value,
+                            });
                         },
-                        removeItem: (item) => {
-                            assert(isOverrideMode, 'isOverrideMode must be true');
-                            assert(chatApp.override, 'chatApp.override must be defined');
+                        options: siteAdmin.valuesForAutoCompleteForUserAccessControl ?? [],
+                        minCharactersForSearch: 3,
+                        showValueInListEntries: true,
+                        popupInputPlaceholder: 'Search for a user...',
+                        optionTypeName: 'user',
+                        optionTypeNamePlural: 'users',
+                        loading: loadingUsers,
+                    },
+                }}
+            />
 
-                            if (!chatApp.override.exclusiveUserIdAccessControl) {
-                                return;
-                            }
-
-                            const value = typeof item === 'string' ? item : item.userId;
-                            if (chatApp.override.exclusiveUserIdAccessControl.includes(value)) {
-                                chatApp.override.exclusiveUserIdAccessControl =
-                                    chatApp.override.exclusiveUserIdAccessControl.filter((r) => r !== value);
-                            }
-                        },
-                        search: {
-                            onSearchValueChanged: async (value) => {
-                                await siteAdmin.sendSiteAdminCommand({
-                                    command: 'getValuesForUserAutoComplete',
-                                    valueProvidedByUser: value,
-                                });
-                            },
-                            options: siteAdmin.valuesForAutoCompleteForUserAccessControl ?? [],
-                            minCharactersForSearch: 3,
-                            showValueInListEntries: true,
-                            popupInputPlaceholder: 'Search for a user...',
-                            optionTypeName: 'user',
-                            optionTypeNamePlural: 'users',
-                            loading: loadingUsers,
-                        },
-                    }}
-                />
-
-                {#if isOverrideMode}
-                    <p class="text-xs text-muted-foreground">
-                        Original: {(chatAppOriginal.override?.exclusiveUserIdAccessControl ?? []).length} user IDs
-                    </p>
-                {/if}
-            </div>
-
-            <div class="max-w-[300px] space-y-3">
-                {@render exclusiveUserAccessWhoCanAccess()}
-            </div>
+            {#if isOverrideMode}
+                <p class="text-xs text-muted-foreground">
+                    Original: {(chatAppOriginal.override?.exclusiveUserIdAccessControl ?? []).length} user IDs
+                </p>
+            {/if}
         </div>
     {/if}
 </div>
-
-{#snippet exclusiveUserAccessWhoCanAccess()}
-    <div class="p-3 bg-info-bg border border-info/20 rounded-lg">
-        <h3 class="text-sm font-medium text-foreground mb-2">Who Can Access</h3>
-        <div class="text-sm text-info">
-            {#if !app.enabled}
-                <p class="text-destructive font-medium">Chat app is disabled</p>
-            {:else if (app.override?.exclusiveUserIdAccessControl ?? []).length === 0}
-                <p class="text-destructive font-medium">No access - No users specified</p>
-            {:else}
-                <ul class="space-y-1 list-disc list-inside">
-                    Only these users will be granted access:
-                    {#each app.override?.exclusiveUserIdAccessControl ?? [] as userId, index}
-                        <span class="font-medium">{userId}</span>
-                        {#if index < (app.override?.exclusiveUserIdAccessControl ?? []).length - 1}
-                            <span class="text-muted-foreground">, </span>
-                        {/if}
-                    {/each}
-                </ul>
-            {/if}
-        </div>
-    </div>
-{/snippet}

@@ -1,5 +1,5 @@
 /**
- * Vitest configuration for Svelte component tests only.
+ * Vitest configuration for Svelte component tests and the ESM local-dev tools (test/tools).
  *
  * jsdom is used as the test environment (not happy-dom).
  * happy-dom has a rendering gap with Svelte 5: {#if}/{#each} blocks inside a
@@ -22,7 +22,7 @@ export default defineConfig({
         environment: 'jsdom',
         globals: true,
         setupFiles: ['./test/vitest-setup.ts'],
-        include: ['test/components/**/*.test.ts', 'test/components/**/*.spec.ts'],
+        include: ['test/components/**/*.test.ts', 'test/components/**/*.spec.ts', 'test/tools/**/*.test.ts'],
     },
     resolve: {
         // 'browser' ensures Svelte resolves to index-client.js (not index-server.js)

@@ -352,6 +352,23 @@ async function switchOrganization(newOrgId: string) {
 }
 ```
 
+## Session Account and Identity Field Names
+
+Pika projects an account ID onto each session row from the session's attributes. Two `pika-config.ts` options control which attribute names are read:
+
+- `accountIdFieldNames` is the list of names tried, in order, to find the account ID. The default is `['accountId', 'account_id']`. The Strands converse Lambda reads it too.
+- `sessionIdentityFieldNames` lists custom-data keys that the Strands converse Lambda copies onto an existing session when none of them is present yet, for example the id of a delegated user acting for the account. It is unset by default, which copies nothing.
+
+```typescript
+export const pikaConfig: PikaConfig = {
+    // ... project names, siteFeatures ...
+    accountIdFieldNames: ['accountId', 'account_id'],
+    sessionIdentityFieldNames: ['delegateId', 'delegateEmail']
+};
+```
+
+See [Platform Settings](/reference/configuration/platform-settings/) for both options.
+
 ## Testing Checklist
 
 {% checklist %}

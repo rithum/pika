@@ -386,7 +386,7 @@ export async function createSharedSession(user: ChatUser<RecordOrUndef>, request
             'Accept-Encoding': 'gzip',
             'x-chat-auth': `Bearer ${convertToJwtString<undefined>({ userId: user.userId, customUserData: undefined }, appConfig.jwtSecret)}`
         },
-        body: request,
+        body: { ...request, roles: user.roles },
         errorInfo: {
             operation: 'createSharedSession',
             resourceName: 'shared session',

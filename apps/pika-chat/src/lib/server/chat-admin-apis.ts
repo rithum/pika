@@ -251,6 +251,7 @@ export async function getMatchingChatApps(
 ): Promise<ChatApp[]> {
     const request: GetChatAppsByRulesRequest = {
         userId: user.userId,
+        roles: user.roles,
         chatAppsForHomePage,
         homePageFilterRules: homePageFilterRules,
         chatAppId,

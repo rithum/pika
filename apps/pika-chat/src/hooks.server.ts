@@ -1,6 +1,12 @@
 import { ForceUserToReauthenticateError, loadAuthProvider, NotAuthenticatedError } from '$lib/server/auth';
 import type { AuthProvider } from '$lib/server/auth/types';
-import { shouldBypassChatUserRoleMerge } from '$lib/custom/chat-user-auth';
+import {
+    mergeChatUserCustomData,
+    mergeStoredRolesIntoSession,
+    resolveChatUserAccountWriteBack,
+    rolesForChatUserRecord,
+    shouldBypassChatUserRoleMerge
+} from '$lib/custom/chat-user-auth';
 import { onAuthProviderCallback, onBeforeAuth } from '$lib/custom/server-hooks';
 import { createChatUser, getChatUser } from '$lib/server/chat-apis';
 import { appConfig } from '$lib/server/config';
@@ -212,7 +218,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         if (shouldRefreshChatUser) {
             try {
                 // Get current ChatUser data from DynamoDB
-                let currentChatUser = await getChatUser(user.userId);
+                let currentChatUser = await getChatUser<RecordOrUndef>(user.userId);
                 // console.log('[Hooks Debug] Raw ChatUser from database:', {
                 //     userId: user.userId,
                 //     fullChatUser: currentChatUser,
@@ -228,6 +234,7 @@ export const handle: Handle = async ({ event, resolve }) => {
                         // record is created. Create it now rather than clearing the valid session.
                         const newChatUser = { ...user } as any;
                         delete newChatUser.authData;
+                        newChatUser.roles = rolesForChatUserRecord(user.roles);
                         const createdChatUser = await createChatUser(newChatUser);
                         if (!createdChatUser) {
                             console.error('[Hooks] Failed to create ChatUser for authenticated user - clearing cookies:', {
@@ -252,7 +259,7 @@ export const handle: Handle = async ({ event, resolve }) => {
                 const firstNameChanged = user.firstName !== currentChatUser.firstName;
                 const lastNameChanged = user.lastName !== currentChatUser.lastName;
                 const userTypeChanged = user.userType !== currentChatUser.userType;
-                const rolesChanged = shouldBypassChatUserRoleMerge(user) ? false : !arraysEqual(user.roles, currentChatUser.roles);
+                const rolesChanged = shouldBypassChatUserRoleMerge(user) ? false : !arraysEqual(rolesForChatUserRecord(user.roles), currentChatUser.roles);
                 const viewingContentForChanged = !deepEqual(user.viewingContentFor, currentChatUser.viewingContentFor);
 
                 // console.log('[Hooks Debug] Individual field comparisons:', {
@@ -305,6 +312,19 @@ export const handle: Handle = async ({ event, resolve }) => {
                     // });
                 }
 
+                const refreshAccountWriteBack = resolveChatUserAccountWriteBack(user, currentChatUser);
+                if (refreshAccountWriteBack) {
+                    try {
+                        await createChatUser({ ...currentChatUser, customData: refreshAccountWriteBack });
+                        currentChatUser = { ...currentChatUser, customData: refreshAccountWriteBack };
+                    } catch (e) {
+                        console.warn('[Hooks] Could not persist the resolved account to the ChatUser record:', {
+                            userId: user.userId,
+                            error: e instanceof Error ? e.message : String(e)
+                        });
+                    }
+                }
+
                 // Check if custom data has changed
                 const cookieCustomData = JSON.stringify(user.customData || {});
                 const chatUserCustomData = JSON.stringify(currentChatUser.customData || {});
@@ -325,9 +345,9 @@ export const handle: Handle = async ({ event, resolve }) => {
                         firstName: currentChatUser.firstName || user.firstName,
                         lastName: currentChatUser.lastName || user.lastName,
                         userType: currentChatUser.userType || user.userType,
-                        roles: shouldBypassChatUserRoleMerge(user) ? user.roles : (currentChatUser.roles || user.roles),
+                        roles: shouldBypassChatUserRoleMerge(user) ? user.roles : mergeStoredRolesIntoSession(user.roles, currentChatUser.roles),
                         viewingContentFor: currentChatUser.viewingContentFor || user.viewingContentFor,
-                        customData: currentChatUser.customData || user.customData
+                        customData: mergeChatUserCustomData(user, currentChatUser)
                     };
 
                     needsSerializationDueToChatUserChanges = true;
@@ -371,6 +391,7 @@ export const handle: Handle = async ({ event, resolve }) => {
                     // Clone and get rid of the auth data which should not be stored in the chat database
                     const newChatUser = { ...user } as any;
                     delete newChatUser.authData;
+                    newChatUser.roles = rolesForChatUserRecord(user.roles);
                     // console.log('[Hooks Debug] Creating new ChatUser with data:', {
                     //     userId: user.userId,
                     //     newChatUserRoles: newChatUser.roles,
@@ -401,9 +422,12 @@ export const handle: Handle = async ({ event, resolve }) => {
                     // Auth provider is the source of truth for userType and roles — propagate changes back to DDB.
                     // (createChatUser writes via updateUser in chat-ddb.ts, which supports these fields as of 0.25.0.)
                     const shouldUpdateUserType = user.userType && user.userType !== chatUser.userType;
-                    const shouldUpdateRoles = user.roles && !arraysEqual(user.roles, chatUser.roles);
+                    const persistedRoles = rolesForChatUserRecord(user.roles);
+                    const shouldUpdateRoles = persistedRoles && !arraysEqual(persistedRoles, chatUser.roles);
 
-                    if (shouldUpdateFirstName || shouldUpdateLastName || shouldUpdateUserType || shouldUpdateRoles) {
+                    const accountWriteBack = resolveChatUserAccountWriteBack(user, chatUser);
+
+                    if (shouldUpdateFirstName || shouldUpdateLastName || shouldUpdateUserType || shouldUpdateRoles || accountWriteBack) {
                         console.log('[Hooks] Updating ChatUser with fresh data from auth provider:', {
                             userId: user.userId,
                             oldFirstName: chatUser.firstName || '(empty)',
@@ -416,8 +440,9 @@ export const handle: Handle = async ({ event, resolve }) => {
                             newUserType: shouldUpdateUserType ? user.userType : chatUser.userType,
                             userTypeWillUpdate: shouldUpdateUserType,
                             oldRoles: chatUser.roles,
-                            newRoles: shouldUpdateRoles ? user.roles : chatUser.roles,
-                            rolesWillUpdate: shouldUpdateRoles
+                            newRoles: shouldUpdateRoles ? persistedRoles : chatUser.roles,
+                            rolesWillUpdate: shouldUpdateRoles,
+                            accountWillUpdate: !!accountWriteBack
                         });
 
                         await createChatUser({
@@ -425,7 +450,8 @@ export const handle: Handle = async ({ event, resolve }) => {
                             firstName: shouldUpdateFirstName ? user.firstName : chatUser.firstName,
                             lastName: shouldUpdateLastName ? user.lastName : chatUser.lastName,
                             userType: shouldUpdateUserType ? user.userType : chatUser.userType,
-                            roles: shouldUpdateRoles ? user.roles : chatUser.roles
+                            roles: shouldUpdateRoles ? persistedRoles : chatUser.roles,
+                            customData: accountWriteBack ?? chatUser.customData
                         });
 
                         console.log('[Hooks] ChatUser data updated successfully');

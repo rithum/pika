@@ -39,7 +39,7 @@ except ImportError:
     AgentCoreMemoryToolProvider = None
 from chat_ddb import (ensure_session, update_session, add_message, get_user, get_messages,
                       set_session_llm_instruction_hash, session_token, _now_iso,
-                      account_id_of, pinned_account_fields)
+                      account_id_of, pinned_account_fields, session_identity_of)
 from trace_store import (offload_traces, cap_traces_inline, ensure_system_prompt_object,
                          inline_trace_budget)
 from tool_loop_guard import ToolLoopGuard
@@ -1181,9 +1181,12 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         if _timezone:
             session_attributes['timezone'] = str(_timezone)
 
+        session_identity = session_identity_of(custom_data_str)
+
         session_item = ensure_session(dynamodb, CHAT_SESSION_TABLE, user_id, session_id, agent_id, chat_app_id,
                                       user_type=user_type,
-                                      session_attributes=session_attributes)
+                                      session_attributes=session_attributes,
+                                      session_identity=session_identity)
 
         # Fetch conversation history BEFORE storing the current user message so
         # the LLM only sees prior turns — not the message it's about to receive.

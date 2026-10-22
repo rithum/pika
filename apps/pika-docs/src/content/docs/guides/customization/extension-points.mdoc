@@ -16,11 +16,17 @@ All files under `src/lib/custom/` are protected from `pika sync`, so your overri
 | `session-read-only.ts` | `isSessionReadOnly(session, user)` | `false` | Mark additional session types as read-only |
 | `request-user-id-resolver.ts` | `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` | `undefined` | Override the user id used by message routes |
 | `session-entity-extraction.ts` | `getSessionEntityValue(session)` | `session.entityId` | Extract entity/account ID from a session |
-| `session-account-context.ts` | `transformSessionAccountContext(session, user)` | session unchanged | Backfill missing account context before sessions are returned |
+| `session-account-context.ts` | `transformSessionAccountContext(session, user)` | session unchanged | **Deprecated, no longer called.** Use `scopeSessionsToAccount` |
+| `session-account-context.ts` | `scopeSessionsToAccount(sessions, user, chatAppId, viewingAnotherUser)` | sessions unchanged | Filter the session list a user sees |
+| `session-account-context.ts` | `scopePinnedResultsToAccount(results, user, chatAppId)` | results unchanged | Filter pinned-session search results |
 | `server-hooks.ts` | `transformCustomUserData(data, ctx)` | data unchanged | Transform customUserData before it reaches the converse Lambda |
 | `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks |
 | `server-hooks.ts` | `onBeforeAuth(event, pathName, user)` | `{ clearSession: false }` | Clear the session conditionally before auth proceeds |
 | `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
+| `chat-user-auth.ts` | `rolesForChatUserRecord(roles)` | roles unchanged | Choose the roles persisted on the stored ChatUser record |
+| `chat-user-auth.ts` | `mergeStoredRolesIntoSession(sessionRoles, storedRoles)` | `storedRoles \|\| sessionRoles` | Choose the roles the session carries after a periodic refresh |
+| `chat-user-auth.ts` | `mergeChatUserCustomData(user, chatUser)` | `chatUser.customData \|\| user.customData` | Choose the customData the session carries after a periodic refresh |
+| `chat-user-auth.ts` | `resolveChatUserAccountWriteBack(user, chatUser)` | `undefined` | Return customData to write back to the stored ChatUser record |
 | `admin/site-admin-extensions.ts` | `customAdminPages` | `[]` | Add pages to the Site Admin nav |
 | `message-visibility.ts` | `shouldRenderMessage(message)` | `true` | Hide messages from the rendered transcript without removing them from the session |
 | `trace-content-access.ts` | `mayReceiveTraceContent(user, tracesFeatureEnabled)` | `true` | Decide whether a user may receive trace content (system prompt, tool inputs and outputs) |
@@ -171,7 +177,9 @@ Override when your deployment stores the relevant account context in a field oth
 
 ### `transformSessionAccountContext` — `session-account-context.ts`
 
-Backfills missing account context onto sessions before they are returned to the client.
+{% aside type="caution" title="Deprecated" %}
+Pika no longer calls this hook. The sessions list and the site-admin search endpoint don't use it, and site-admin search no longer stamps the admin's account on other users' sessions. If you overrode it, call its logic from `scopeSessionsToAccount`.
+{% /aside %}
 
 ```typescript
 export function transformSessionAccountContext(
@@ -180,7 +188,97 @@ export function transformSessionAccountContext(
 ): ChatSession<RecordOrUndef>
 ```
 
-Called on every session returned from the sessions API and the site-admin search endpoint. Override to copy account data from `user` onto sessions that were created before account context was stored on sessions. Return a new object rather than mutating the input. The default returns the session unchanged.
+It stays exported with its identity default so existing overrides still compile.
+
+---
+
+### `scopeSessionsToAccount` — `session-account-context.ts`
+
+Filters the session list a user sees, for example to the account the request acts on.
+
+```typescript
+export function scopeSessionsToAccount(
+    sessions: ChatSession<RecordOrUndef>[],
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatAppId: string,
+    viewingAnotherUser?: boolean
+): ChatSession<RecordOrUndef>[]
+```
+
+`viewingAnotherUser` is `true` when a content admin lists another user's sessions. Return a new array rather than mutating the input. The default returns the sessions unchanged.
+
+---
+
+### `scopePinnedResultsToAccount` — `session-account-context.ts`
+
+Filters pinned-session search results the same way.
+
+```typescript
+export function scopePinnedResultsToAccount(
+    results: PinnedObjAndChatSession[] | undefined,
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatAppId: string
+): PinnedObjAndChatSession[] | undefined
+```
+
+The default returns the results unchanged.
+
+---
+
+### `rolesForChatUserRecord` — `chat-user-auth.ts`
+
+Decides which roles are persisted on the stored ChatUser record for a user.
+
+```typescript
+export function rolesForChatUserRecord(roles: string[] | undefined): string[] | undefined
+```
+
+The default returns the roles as given.
+
+---
+
+### `mergeStoredRolesIntoSession` — `chat-user-auth.ts`
+
+Decides which roles the session carries after a periodic ChatUser refresh.
+
+```typescript
+export function mergeStoredRolesIntoSession(
+    sessionRoles: string[] | undefined,
+    storedRoles: string[] | undefined
+): string[] | undefined
+```
+
+The default returns the stored roles, falling back to the session roles.
+
+---
+
+### `mergeChatUserCustomData` — `chat-user-auth.ts`
+
+Decides which `customData` the session carries after a periodic ChatUser refresh.
+
+```typescript
+export function mergeChatUserCustomData(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatUser: ChatUser<RecordOrUndef>
+): RecordOrUndef
+```
+
+The default returns the stored ChatUser's `customData`, falling back to the session user's.
+
+---
+
+### `resolveChatUserAccountWriteBack` — `chat-user-auth.ts`
+
+Returns `customData` to write back to the stored ChatUser record during a refresh, or `undefined` to write nothing.
+
+```typescript
+export function resolveChatUserAccountWriteBack(
+    user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>,
+    chatUser: ChatUser<RecordOrUndef>
+): RecordOrUndef | undefined
+```
+
+The write runs inside a try/catch, so a failed write doesn't end the refresh. The default returns `undefined`.
 
 ---
 
