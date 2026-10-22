@@ -1,11 +1,11 @@
 {
-  "latestVersion": "0.33.1",
+  "latestVersion": "0.34.0",
   "currentDevelopment": "0.34.0",
   "releases": [
     {
       "version": "0.34.0",
       "date": "2026-10-22",
-      "status": "unreleased",
+      "status": "released",
       "breaking": false,
       "summary": "The access-control panel is redesigned, with role labels, the account ID check and the internal-users label read from site config. A new additionalExternalAccessControl override field adds an additive grant for external users, and chat-app-by-rules now evaluates the session's roles. Six new lib/custom hooks and local development tools are added. The sessions list and site-admin search no longer call transformSessionAccountContext, which is deprecated.",
       "highlights": [
