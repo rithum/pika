@@ -335,6 +335,145 @@ class TestEnsureSessionPersistsAttributes:
         mock_table.put_item.assert_not_called()
         mock_table.update_item.assert_not_called()
 
+    IDENTITY_ENV = 'PIKA_SESSION_IDENTITY_FIELD_NAMES'
+
+    def test_identity_env_unset_leaves_account_backfill_unchanged(self, monkeypatch):
+        from chat_ddb import ensure_session
+        monkeypatch.delenv(self.IDENTITY_ENV, raising=False)
+        mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'acct-9'})
+
+        seed, nested = [c.kwargs for c in mock_table.update_item.call_args_list]
+        assert seed['UpdateExpression'] == 'SET #sa = :empty'
+        assert nested['UpdateExpression'] == 'SET #sa.#k0 = :v0'
+        assert nested['ConditionExpression'] == (
+            'attribute_exists(session_id) AND attribute_not_exists(#sa.#k0) AND attribute_not_exists(#sa.#a0)')
+        assert result['session_attributes'] == {'accountId': 'acct-9'}
+
+    def test_identity_env_unset_writes_nothing_without_identity(self, monkeypatch):
+        from chat_ddb import ensure_session
+        monkeypatch.delenv(self.IDENTITY_ENV, raising=False)
+        mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})
+
+        ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1')
+
+        mock_table.put_item.assert_not_called()
+        mock_table.update_item.assert_not_called()
+
+    def test_self_heals_existing_session_missing_session_identity(self, monkeypatch):
+        from chat_ddb import ensure_session
+        monkeypatch.setenv(self.IDENTITY_ENV, 'delegateId,delegateEmail')
+        mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})
+
+        identity = {'delegateId': '42', 'delegateEmail': 'e@example.com'}
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1', session_identity=identity)
+
+        mock_table.put_item.assert_not_called()
+        assert mock_table.update_item.call_count == 2
+        nested = mock_table.update_item.call_args.kwargs
+        assert {'delegateId', 'delegateEmail'} <= set(nested['ExpressionAttributeNames'].values())
+        assert '42' in nested['ExpressionAttributeValues'].values()
+        assert result['session_attributes']['delegateEmail'] == 'e@example.com'
+
+    def test_session_identity_backfills_independently_of_account_context(self, monkeypatch):
+        from chat_ddb import ensure_session
+        monkeypatch.setenv(self.IDENTITY_ENV, 'delegateId,delegateEmail')
+        existing = {'user_id': 'u1', 'session_id': 's1',
+                    'session_attributes': {'accountId': 'already-here'}}
+        mock_ddb, mock_table = self._existing_session_table(existing)
+
+        ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                       session_attributes={'accountId': 'acct-9'},
+                       session_identity={'delegateId': '42'})
+
+        nested = mock_table.update_item.call_args.kwargs
+        assert 'accountId' not in nested['ExpressionAttributeNames'].values()
+        assert nested['ExpressionAttributeNames']['#k0'] == 'delegateId'
+        assert nested['ExpressionAttributeValues'][':v0'] == '42'
+
+    def test_skips_identity_backfill_when_any_configured_key_present(self, monkeypatch):
+        from chat_ddb import ensure_session
+        monkeypatch.setenv(self.IDENTITY_ENV, 'delegateId,delegateEmail')
+        existing = {'user_id': 'u1', 'session_id': 's1',
+                    'session_attributes': {'delegateId': 'already-here'}}
+        mock_ddb, mock_table = self._existing_session_table(existing)
+
+        ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                       session_identity={'delegateId': '42', 'delegateEmail': 'e@example.com'})
+
+        mock_table.put_item.assert_not_called()
+        mock_table.update_item.assert_not_called()
+
+    def test_identity_only_backfill_client_error_returns_existing(self, monkeypatch, caplog):
+        from chat_ddb import ensure_session
+        monkeypatch.setenv(self.IDENTITY_ENV, 'delegateId,delegateEmail')
+        item = {'user_id': 'u1', 'session_id': 's1', 'session_attributes': {'accountId': 'acct-1'}}
+        mock_ddb, mock_table = self._existing_session_table(item)
+        mock_table.update_item.side_effect = self._client_error('ProvisionedThroughputExceededException')
+
+        with caplog.at_level('WARNING', logger='chat_ddb'):
+            result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                    session_attributes={'accountId': 'acct-9'},
+                                    session_identity={'delegateId': '42'})
+
+        assert result is item
+        assert 'delegateId' not in result['session_attributes']
+        assert 'ensure_session identity backfill failed for session s1' in caplog.text
+
+    def test_account_pinning_failure_with_identity_still_raises(self, monkeypatch):
+        from botocore.exceptions import ClientError
+        from chat_ddb import ensure_session
+        monkeypatch.setenv(self.IDENTITY_ENV, 'delegateId,delegateEmail')
+        mock_ddb, mock_table = self._existing_session_table({'user_id': 'u1', 'session_id': 's1'})
+        mock_table.update_item.side_effect = [None, self._client_error('ProvisionedThroughputExceededException')]
+
+        with pytest.raises(ClientError):
+            ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                           session_attributes={'accountId': 'acct-9'},
+                           session_identity={'delegateId': '42'})
+
+    def test_condition_failure_retry_carries_session_identity(self, monkeypatch):
+        from chat_ddb import ensure_session
+        monkeypatch.setenv(self.IDENTITY_ENV, 'delegateId,delegateEmail')
+        mock_ddb, mock_table = self._existing_session_table({})
+        mock_table.get_item.side_effect = [
+            {'Item': {'user_id': 'u1', 'session_id': 's1', 'session_attributes': {'userId': 'u1'}}},
+            {'Item': {'user_id': 'u1', 'session_id': 's1', 'session_attributes': {'userId': 'u1'}}},
+        ]
+        mock_table.update_item.side_effect = [self._client_error('ConditionalCheckFailedException'), None]
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_identity={'delegateId': '42'})
+
+        assert mock_table.get_item.call_args_list[1].kwargs['ConsistentRead'] is True
+        assert mock_table.update_item.call_count == 2
+        retry = mock_table.update_item.call_args.kwargs
+        assert retry['ExpressionAttributeValues'][':v0'] == '42'
+        assert result['session_attributes']['delegateId'] == '42'
+
+
+class TestSessionIdentityOf:
+
+    def test_returns_only_configured_keys_present(self, monkeypatch):
+        from chat_ddb import session_identity_of
+        monkeypatch.setenv('PIKA_SESSION_IDENTITY_FIELD_NAMES', 'delegateId, delegateEmail')
+        picked = session_identity_of({'delegateId': '42', 'accountId': '000000001', 'delegateEmail': None})
+        assert picked == {'delegateId': '42'}
+
+    def test_none_when_env_unset(self, monkeypatch):
+        from chat_ddb import session_identity_of
+        monkeypatch.delenv('PIKA_SESSION_IDENTITY_FIELD_NAMES', raising=False)
+        assert session_identity_of({'delegateId': '42'}) is None
+
+    def test_none_for_absent_keys_and_non_dict(self, monkeypatch):
+        from chat_ddb import session_identity_of
+        monkeypatch.setenv('PIKA_SESSION_IDENTITY_FIELD_NAMES', 'delegateId,delegateEmail')
+        assert session_identity_of({'accountId': '000000001'}) is None
+        assert session_identity_of({}) is None
+        assert session_identity_of(None) is None
+
 
 class TestHasAccountContext:
 
@@ -403,3 +542,55 @@ class TestHandlerPassesSessionAttributes:
         assert attrs['token'] == hashlib.sha256('sess-1:user-001'.encode()).hexdigest()
         # Bedrock requires string values.
         assert all(isinstance(v, str) for v in attrs.values())
+
+    def _ensure_session_identity_kwarg_for_custom_data(self, custom_data):
+        import handler as h
+
+        event = {'body': json.dumps({
+            'agentId': 'agent-x',
+            'userId': 'user-001',
+            'sessionId': 'sess-1',
+            'message': 'hi',
+        })}
+        user_record = {'user_id': 'user-001', 'custom_data': custom_data}
+
+        with (
+            patch('boto3.resource', return_value=MagicMock()),
+            patch('handler.Agent', MagicMock(return_value=MagicMock(return_value='ok'))),
+            patch('handler.load_agent', return_value={'agent_id': 'agent-x', 'base_prompt': 'hi',
+                                                      'foundation_model': 'm', 'tool_ids': []}),
+            patch('handler.load_tools', return_value=[]),
+            patch('handler.build_strands_tools', return_value=[]),
+            patch('handler.get_user', return_value=user_record),
+            patch('handler.get_messages', return_value=[]),
+            patch('handler.ensure_session') as mock_ensure,
+        ):
+            result = h.handler(event, self._ctx())
+
+        assert result['statusCode'] == 200
+        return mock_ensure.call_args.kwargs['session_identity']
+
+    def test_handler_passes_session_identity_kwarg_when_configured_keys_present(self, monkeypatch):
+        monkeypatch.setenv('PIKA_SESSION_IDENTITY_FIELD_NAMES', 'delegateId,delegateEmail')
+        identity = self._ensure_session_identity_kwarg_for_custom_data({
+            'accountId': '000000001',
+            'delegateId': '99001',
+            'delegateEmail': 'jdoe@example.com',
+        })
+
+        assert identity == {'delegateId': '99001', 'delegateEmail': 'jdoe@example.com'}
+
+    def test_handler_passes_none_session_identity_when_keys_absent(self, monkeypatch):
+        monkeypatch.setenv('PIKA_SESSION_IDENTITY_FIELD_NAMES', 'delegateId,delegateEmail')
+        identity = self._ensure_session_identity_kwarg_for_custom_data({'accountId': '000000001'})
+
+        assert identity is None
+
+    def test_handler_passes_none_session_identity_when_env_unset(self, monkeypatch):
+        monkeypatch.delenv('PIKA_SESSION_IDENTITY_FIELD_NAMES', raising=False)
+        identity = self._ensure_session_identity_kwarg_for_custom_data({
+            'accountId': '000000001',
+            'delegateId': '99001',
+        })
+
+        assert identity is None
