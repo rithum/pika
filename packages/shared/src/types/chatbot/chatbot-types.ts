@@ -2235,6 +2235,9 @@ export interface GetChatAppsByRulesRequest {
      */
     chatAppsForHomePage?: boolean;
 
+    /** Roles from the caller's verified session; when present they replace the stored user's roles for this evaluation. */
+    roles?: string[];
+
     /**
      * We sometimes need to know if a user's associated "entity" (account or company) is allowed to access a chat app.
      * This is the path to the custom data field that is used to match against the entity.  Of course,
@@ -2876,8 +2879,23 @@ export const FEATURE_NAMES: Record<FeatureIdType, string> = {
     intentRouter: 'Intent Router'
 };
 
+export interface AccessControlSiteConfig {
+    /** Regular expression an entity ID in additionalExternalAccessControl must match in full. Unset accepts any non-empty value. */
+    accountIdPattern?: string;
+    /** Human-readable form of accountIdPattern, shown in validation errors. */
+    accountIdPatternDescription?: string;
+    /** Display labels by role value, merged over the built-in pika role labels. */
+    roleLabels?: Record<string, string>;
+    /** Roles offered as checkboxes in access-control editors, after the built-in pika roles. */
+    predefinedRoles?: string[];
+    /** Label for the all-internal-users option. Defaults to 'All internal users'. */
+    internalUsersLabel?: string;
+}
+
 export interface SiteAdminFeature {
     websiteEnabled: boolean;
+
+    accessControl?: AccessControlSiteConfig;
 
     /** Ignored if websiteEnabled is false. */
     supportUserEntityAccessControl?: {
@@ -3944,6 +3962,15 @@ export interface ChatAppOverride extends AccessRules {
     exclusiveExternalAccessControl?: string[];
 
     /**
+     * Additive grant list for external users, matched against the same entity value as exclusiveExternalAccessControl.
+     *
+     * External users associated with an entity (such as an account ID) on this list are allowed access in addition to
+     * whatever the other rules grant. Unlike exclusiveExternalAccessControl, a non-match here does not deny anyone;
+     * evaluation continues with the exclusive lists and the general userTypes/userRoles rules.
+     */
+    additionalExternalAccessControl?: string[];
+
+    /**
      * Each forked instance of pika can provide their own custom data on a User object using the AuthProvider
      * they implement.  Each user can thus have custom data associated with him.  It is common for example for
      * a user to have an accountId or companyId associated with him by the AuthProvider and stored in the custom data.
@@ -4002,8 +4029,10 @@ export type UpdateableChatAppOverrideFields = Extract<
     | 'userRoles'
     | 'applyRulesAs'
     | 'exclusiveExternalAccessControl'
+    | 'additionalExternalAccessControl'
     | 'exclusiveInternalAccessControl'
     | 'exclusiveUserIdAccessControl'
+    | 'homePageFilterRules'
     | 'showOnHomePage'
     | 'title'
     | 'description'
@@ -4093,6 +4122,12 @@ export interface PikaConfig {
      * @since 0.26.0
      */
     accountIdFieldNames?: string[];
+
+    /**
+     * Custom-data keys copied onto an existing session when none of them is present yet (for example a delegated user's id).
+     * Comma-joined into PIKA_SESSION_IDENTITY_FIELD_NAMES for the Strands converse Lambda. Unset copies nothing.
+     */
+    sessionIdentityFieldNames?: string[];
 }
 
 /**

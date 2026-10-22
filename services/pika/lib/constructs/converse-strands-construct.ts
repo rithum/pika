@@ -10,6 +10,8 @@ export interface ConverseStrandsConstructProps {
     projNameKebabCase: string;
     stage: string;
     pikaOutputs: PikaConstructOutputs;
+    accountIdFieldNames?: string[];
+    sessionIdentityFieldNames?: string[];
 }
 
 /**
@@ -32,7 +34,7 @@ export class ConverseStrandsConstruct extends Construct {
     constructor(scope: Construct, id: string, props: ConverseStrandsConstructProps) {
         super(scope, id);
 
-        const { projNameKebabCase, stage, pikaOutputs } = props;
+        const { projNameKebabCase, stage, pikaOutputs, accountIdFieldNames, sessionIdentityFieldNames } = props;
         const inferenceProfileEnvVars = Object.fromEntries(
             Object.entries(pikaOutputs.inferenceProfileArns).map(([key, arn]) => [`INFERENCE_PROFILE_${key}`, arn])
         );
@@ -183,6 +185,8 @@ export class ConverseStrandsConstruct extends Construct {
                 AWS_LAMBDA_EXEC_WRAPPER: '/opt/bootstrap',
                 AWS_LWA_INVOKE_MODE: 'response_stream',
                 PORT: '8080',
+                ...(accountIdFieldNames?.length ? { PIKA_ACCOUNT_ID_FIELD_NAMES: accountIdFieldNames.join(',') } : {}),
+                ...(sessionIdentityFieldNames?.length ? { PIKA_SESSION_IDENTITY_FIELD_NAMES: sessionIdentityFieldNames.join(',') } : {}),
                 ...inferenceProfileEnvVars
             }
         });

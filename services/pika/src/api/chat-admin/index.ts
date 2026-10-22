@@ -165,7 +165,7 @@ import {
     getMockTestPinnedSessions,
     getMockTestSharedSessionVisits
 } from '../../lib/chat-ddb';
-import { getMatchingChatApps } from '../../lib/get-matching-chat-apps';
+import { getMatchingChatApps, withSessionRoles } from '../../lib/get-matching-chat-apps';
 import { getAllMemoryRecords, getMemoryInstructions } from '../../lib/memory';
 import { getMemoryId } from '../../lib/utils';
 
@@ -811,11 +811,14 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
         );
     }
 
+    // With chatAdminApiAuth 'NONE' every chat-admin caller is trusted, including roles and userId sent here.
+    const accessUser = withSessionRoles(user, requestBody.roles);
     console.log('Calling getMatchingChatApps with parameters:', {
         userInfo: {
-            userId: user.userId,
-            userType: user.userType,
-            roles: user.roles
+            userId: accessUser.userId,
+            userType: accessUser.userType,
+            roles: accessUser.roles,
+            rolesFromSession: requestBody.roles !== undefined
         },
         chatAppsForHomePage,
         homePageFilterRules,
@@ -823,7 +826,7 @@ async function handleGetChatAppByRules(event: APIGatewayProxyEventPika<GetChatAp
         customDataFieldPathToMatchUsersEntity
     });
 
-    response.chatApps = getMatchingChatApps(user, chatAppsForHomePage, homePageFilterRules, chatApps, customDataFieldPathToMatchUsersEntity);
+    response.chatApps = getMatchingChatApps(accessUser, chatAppsForHomePage, homePageFilterRules, chatApps, customDataFieldPathToMatchUsersEntity);
 
     console.log('Final filtered result:', {
         originalCount: chatApps.length,

@@ -1,6 +1,14 @@
 import type { AccessRules, ChatApp, ChatAppOverride, ChatUser, RecordOrUndef, UserChatAppRule, UserType } from 'pika-shared/types/chatbot/chatbot-types';
 import { getEntityFromCustomData } from './utils';
 
+/** Returns the user with roles replaced by `sessionRoles` when that is a string array; otherwise the user unchanged. An empty array means no roles. */
+export function withSessionRoles<T extends ChatUser<RecordOrUndef>>(user: T, sessionRoles: unknown): T {
+    if (!Array.isArray(sessionRoles) || !sessionRoles.every((role) => typeof role === 'string')) {
+        return user;
+    }
+    return { ...user, roles: sessionRoles as string[] };
+}
+
 /**
  * This function is used to get the matching chat apps for a user.  It is used to get the chat apps that the user is allowed to access.
  *
@@ -191,6 +199,8 @@ function checkUserAccessBasedOnRules(user: ChatUser<RecordOrUndef>, userTypes: U
  *
  * 1. enabled: If present, overrides the chatApp.enabled setting. If not enabled, no one can access the chat app.
  * 2. exclusiveUserIdAccessControl: If provided, only allow these userIds to access the chat app, whether internal or external, doesn't matter.  All other access rules are ignored.
+ * 2.5. additionalExternalAccessControl: If provided, external users associated with these entities are ALLOWED in addition to
+ *      whatever the rules below grant. A non-match does not deny - evaluation continues with the rules below.
  * 3. exlusive user typeaccess control
  *     exclusiveInternalAccessControl: If provided, only allow these entities to access the chat app for internal users.
  *     exclusiveExternalAccessControl: If provided, only allow these entities to access the chat app for external users.
@@ -208,6 +218,7 @@ function checkUserAccessToChatAppUsingOverride(user: ChatUser<RecordOrUndef>, ov
         exclusiveUserIdAccessControl: override.exclusiveUserIdAccessControl,
         exclusiveInternalAccessControl: override.exclusiveInternalAccessControl,
         exclusiveExternalAccessControl: override.exclusiveExternalAccessControl,
+        additionalExternalAccessControl: override.additionalExternalAccessControl,
         userTypes: override.userTypes,
         userRoles: override.userRoles,
         applyRulesAs: override.applyRulesAs
@@ -221,6 +232,11 @@ function checkUserAccessToChatAppUsingOverride(user: ChatUser<RecordOrUndef>, ov
     // Only apply exclusive user ID control if the array exists and has entries
     if (override.exclusiveUserIdAccessControl && override.exclusiveUserIdAccessControl.length > 0) {
         const hasAccess = override.exclusiveUserIdAccessControl.includes(user.userId);
+        if (override.additionalExternalAccessControl && override.additionalExternalAccessControl.length > 0) {
+            console.warn(
+                'Both exclusiveUserIdAccessControl and additionalExternalAccessControl are set; the exclusive user ID list takes precedence and additionalExternalAccessControl is ignored'
+            );
+        }
         console.log(`Exclusive user ID control: ${hasAccess ? 'ALLOWED' : 'DENIED'} for user ${user.userId}`);
         return hasAccess;
     } else if (override.exclusiveUserIdAccessControl && override.exclusiveUserIdAccessControl.length === 0) {
@@ -229,6 +245,16 @@ function checkUserAccessToChatAppUsingOverride(user: ChatUser<RecordOrUndef>, ov
 
     const userType = user.userType ?? 'external-user';
     console.log(`User type: ${userType}`);
+
+    // Additive grant list: an external user whose entity is on this list is allowed outright.
+    if (userType !== 'internal-user' && override.additionalExternalAccessControl && override.additionalExternalAccessControl.length > 0 && customDataFieldPathToMatchUsersEntity) {
+        const entity = getEntityFromCustomData(user.customData, customDataFieldPathToMatchUsersEntity);
+        if (!!entity && override.additionalExternalAccessControl.includes(entity)) {
+            console.log(`Additional external access control: ALLOWED for user ${user.userId} (entity ${entity})`);
+            return true;
+        }
+        console.log(`Additional external access control: entity ${entity} not on list for user ${user.userId}, continuing with other rules`);
+    }
 
     let accessControl = userType === 'internal-user' ? override.exclusiveInternalAccessControl : override.exclusiveExternalAccessControl;
     // Only apply exclusive entity access control if the array exists and has entries

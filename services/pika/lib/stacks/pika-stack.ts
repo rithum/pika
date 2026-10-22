@@ -31,6 +31,15 @@ export class PikaStack extends cdk.Stack {
         // Process stack tags for use in custom resources
         const processedTags = this.processStackTags(props, customStackDefs);
 
+        const accessControl = props.pikaConfig.siteFeatures?.siteAdmin?.accessControl;
+        if (accessControl?.accountIdPattern) {
+            try {
+                new RegExp(accessControl.accountIdPattern);
+            } catch (e) {
+                throw new Error(`siteFeatures.siteAdmin.accessControl.accountIdPattern is not a valid regular expression: ${(e as Error).message}`);
+            }
+        }
+
         // Create the chatbot construct with all the infrastructure
         this.pikaConstruct = new PikaConstruct(
             this,
@@ -49,7 +58,9 @@ export class PikaStack extends cdk.Stack {
                 userMemoryFeature: props.userMemoryFeature,
                 stackTags: processedTags,
                 componentTagNames: props.pikaConfig.stackTags?.componentTagNames,
-                accountIdFieldNames: props.pikaConfig.accountIdFieldNames
+                accountIdFieldNames: props.pikaConfig.accountIdFieldNames,
+                accountIdPattern: accessControl?.accountIdPattern,
+                accountIdPatternDescription: accessControl?.accountIdPatternDescription
             })
         );
 
@@ -58,7 +69,9 @@ export class PikaStack extends cdk.Stack {
             new ConverseStrandsConstruct(this, 'ConverseStrands', {
                 projNameKebabCase: props.projNameKebabCase,
                 stage: props.stage,
-                pikaOutputs: this.pikaConstruct.outputs
+                pikaOutputs: this.pikaConstruct.outputs,
+                accountIdFieldNames: props.pikaConfig.accountIdFieldNames,
+                sessionIdentityFieldNames: props.pikaConfig.sessionIdentityFieldNames
             });
         }
 

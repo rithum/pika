@@ -12,6 +12,24 @@ const MAX_NUM_PARAMS_PER_FUNCTION = 5;
 /** Max serialized size for agent custom payload (DynamoDB item limit is 400KB shared). */
 const MAX_CUSTOM_PAYLOAD_BYTES = 100 * 1024;
 
+let accountIdMatcher: { source: string | undefined; regex: RegExp | undefined } | undefined;
+
+function getAccountIdRegex(): RegExp | undefined {
+    const source = process.env.PIKA_ACCOUNT_ID_PATTERN || undefined;
+    if (accountIdMatcher?.source !== source) {
+        let regex: RegExp | undefined;
+        if (source) {
+            try {
+                regex = new RegExp(`^(?:${source})$`);
+            } catch (e) {
+                console.error('PIKA_ACCOUNT_ID_PATTERN is not a valid regular expression; account id format is not checked', e);
+            }
+        }
+        accountIdMatcher = { source, regex };
+    }
+    return accountIdMatcher?.regex;
+}
+
 function validateCustomPayloadSize(custom: Record<string, unknown>): void {
     const payload = JSON.stringify(custom);
     if (Buffer.byteLength(payload, 'utf8') > MAX_CUSTOM_PAYLOAD_BYTES) {
@@ -1114,6 +1132,14 @@ async function updateChatAppOverride(existingOverride: ChatAppOverride, chatAppI
         true
     );
     handleArrayFieldUpdate(
+        override.additionalExternalAccessControl,
+        existingOverride.additionalExternalAccessControl,
+        'additionalExternalAccessControl',
+        fieldsToUpdate,
+        fieldsToRemove,
+        true
+    );
+    handleArrayFieldUpdate(
         override.exclusiveInternalAccessControl,
         existingOverride.exclusiveInternalAccessControl,
         'exclusiveInternalAccessControl',
@@ -1129,6 +1155,7 @@ async function updateChatAppOverride(existingOverride: ChatAppOverride, chatAppI
         fieldsToRemove,
         true
     );
+    handleArrayFieldUpdate(override.homePageFilterRules, existingOverride.homePageFilterRules, 'homePageFilterRules', fieldsToUpdate, fieldsToRemove, true);
 
     if (Object.keys(fieldsToUpdate).length === 0 && fieldsToRemove.length === 0) {
         return existingOverride;
@@ -1316,6 +1343,45 @@ export function validateChatAppOverride(override: Partial<ChatAppOverride>): str
             const invalidEntries = override.exclusiveExternalAccessControl.filter((entry) => typeof entry !== 'string');
             if (invalidEntries.length > 0) {
                 errors.push('exclusiveExternalAccessControl must be an array of strings');
+            }
+        }
+    }
+
+    // homePageFilterRules validation (optional; null means remove/fall back to site defaults)
+    if (override.homePageFilterRules !== undefined && override.homePageFilterRules !== null) {
+        if (!Array.isArray(override.homePageFilterRules)) {
+            errors.push('homePageFilterRules must be an array');
+        } else {
+            const validUserTypes = ['internal-user', 'external-user'];
+            for (const rule of override.homePageFilterRules) {
+                if (typeof rule !== 'object' || rule === null) {
+                    errors.push('homePageFilterRules entries must be objects');
+                    break;
+                }
+                const badTypes = [...(rule.userTypes ?? []), ...(rule.chatAppUserTypes ?? [])].filter((t) => !validUserTypes.includes(t));
+                if (badTypes.length > 0) {
+                    errors.push(`homePageFilterRules contains invalid user types: ${badTypes.join(', ')}`);
+                    break;
+                }
+            }
+        }
+    }
+
+    // additionalExternalAccessControl validation (optional)
+    if (override.additionalExternalAccessControl !== undefined) {
+        if (!Array.isArray(override.additionalExternalAccessControl)) {
+            errors.push('additionalExternalAccessControl must be an array');
+        } else {
+            const invalidEntries = override.additionalExternalAccessControl.filter((entry) => typeof entry !== 'string');
+            if (invalidEntries.length > 0) {
+                errors.push('additionalExternalAccessControl must be an array of strings');
+            } else {
+                const accountIdRegex = getAccountIdRegex();
+                const malformedIds = accountIdRegex ? override.additionalExternalAccessControl.filter((entry) => !accountIdRegex.test(entry)) : [];
+                if (malformedIds.length > 0) {
+                    const desc = process.env.PIKA_ACCOUNT_ID_PATTERN_DESCRIPTION;
+                    errors.push(`additionalExternalAccessControl contains invalid account ids: ${malformedIds.join(', ')}.${desc ? ` ${desc}` : ''}`);
+                }
             }
         }
     }

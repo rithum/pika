@@ -38,6 +38,10 @@ export interface PikaConstructProps {
     componentTagNames?: string[];
     /** Field names used to normalize account ID from session attributes. Comma-joined into PIKA_ACCOUNT_ID_FIELD_NAMES env var. */
     accountIdFieldNames?: string[];
+    /** Regular expression an additionalExternalAccessControl entry must match in full. Set as PIKA_ACCOUNT_ID_PATTERN on the chat-admin function. */
+    accountIdPattern?: string;
+    /** Human-readable form of accountIdPattern. Set as PIKA_ACCOUNT_ID_PATTERN_DESCRIPTION on the chat-admin function. */
+    accountIdPatternDescription?: string;
     /** Authorization on the chat-admin API methods. 'IAM' requires every caller to sign requests with SigV4. Default 'NONE'. */
     chatAdminApiAuth?: 'NONE' | 'IAM';
     /** JSON access logs for the chat and chat-admin APIs. Requires the account-level API Gateway CloudWatch role. Default false. */
@@ -2009,7 +2013,9 @@ export class PikaConstruct extends Construct {
                 ...(openSearchDomain ? { PIKA_DOMAIN_ENDPOINT: openSearchDomain.domainEndpoint } : {}),
                 ...(memoryId ? { MEMORY_ID: memoryId } : {}),
                 ...(memoryStrategies ? { MEMORY_STRATEGIES: JSON.stringify(memoryStrategies) } : {}),
-                ...(this.props.accountIdFieldNames?.length ? { PIKA_ACCOUNT_ID_FIELD_NAMES: this.props.accountIdFieldNames.join(',') } : {})
+                ...(this.props.accountIdFieldNames?.length ? { PIKA_ACCOUNT_ID_FIELD_NAMES: this.props.accountIdFieldNames.join(',') } : {}),
+                ...(this.props.accountIdPattern ? { PIKA_ACCOUNT_ID_PATTERN: this.props.accountIdPattern } : {}),
+                ...(this.props.accountIdPatternDescription ? { PIKA_ACCOUNT_ID_PATTERN_DESCRIPTION: this.props.accountIdPatternDescription } : {})
             },
             bundling: {
                 minify: true,
