@@ -5,6 +5,51 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0] - 2026-10-22
+
+### Added
+
+- **`additionalExternalAccessControl` override field.** An additive grant for external users: an external user whose entity is on the list gets access, and a non-match doesn't deny, so evaluation continues with the rules below. It is step 2.5 of the access ladder, after `exclusiveUserIdAccessControl`. If both lists are set, the exclusive user ID list wins and a warning is logged.
+- **`siteFeatures.siteAdmin.accessControl` site config.** All fields are optional, and an empty config keeps today's behavior.
+  - `accountIdPattern` (with `accountIdPatternDescription`): a regular expression that an entity ID on `additionalExternalAccessControl` must match in full. It is validated when you synth, and enforced in both the admin UI and the chat-admin API. Unset accepts any non-empty ID.
+  - `roleLabels`: display labels by role, merged over the built-in `pika:content-admin` and `pika:site-admin` labels.
+  - `predefinedRoles`: roles offered as checkboxes in the access-control editors, after the built-in pika roles.
+  - `internalUsersLabel`: label for the all-internal-users option. The default is "All internal users".
+- **`pikaConfig.sessionIdentityFieldNames`.** Custom-data keys that the Strands converse Lambda copies onto an existing session when none of them is present yet, for example a delegated user's id. Unset copies nothing.
+- **Six `lib/custom` hooks** with identity defaults, in `apps/pika-chat/src/lib/custom/`:
+  - `scopeSessionsToAccount` and `scopePinnedResultsToAccount` (`session-account-context.ts`) filter the session list and pinned-session search results.
+  - `rolesForChatUserRecord`, `mergeStoredRolesIntoSession`, `mergeChatUserCustomData` and `resolveChatUserAccountWriteBack` (`chat-user-auth.ts`) shape the stored ChatUser record and the session after a periodic refresh.
+  - See [Extension Points](/guides/customization/extension-points/).
+- **Local development overrides in pika-chat.** All of them are refused inside ECS or Lambda.
+  - `LOCAL_CHAT_API_BASE_URL` sends chat-admin calls to a loopback URL, unsigned, through `resolveApiRoute`.
+  - `LOCAL_CONVERSE_FUNCTION_URL` points converse calls at a loopback URL or a Lambda function URL. Any other host throws.
+  - `PIKA_LOCAL_MOCK_AUTH=true` skips sign-in and uses a mock user configured with `PIKA_LOCAL_MOCK_*`.
+- **`pnpm env:local` and `pnpm dev:nosudo`** in `apps/pika-chat`. `env:local` writes `.env.local` from the deployed stack, and `dev:nosudo` starts a local Strands server and then vite. See `apps/pika-chat/readme-dev.md`.
+
+### Changed
+
+- **The access-control panel is redesigned.** It has a who-can-access builder, a plain-language summary, a home-page tile control and slimmer exclusive lists. It edits the same override fields plus `additionalExternalAccessControl`. Role labels, the account ID check and the all-internal-users label come from `siteFeatures.siteAdmin.accessControl`. "Site default" on the home-page tile writes `null`, which means inherit.
+- **The sessions list and site-admin search no longer call `transformSessionAccountContext`.** It is deprecated and stays exported with its identity default. Move per-session logic into `scopeSessionsToAccount`. Site-admin search no longer stamps the admin's account on other users' sessions.
+- **chat-app-by-rules evaluates the session's roles, sent by pika-chat, in place of the stored ChatUser's.** A role changed directly on the ChatUser record takes effect when the user's session cookie refreshes. A provider that returns `[]` roles now denies role-gated apps.
+- **`homePageFilterRules` on an override is now updatable through the admin API and is validated.** User types must be `internal-user` or `external-user`.
+- **The Strands converse Lambda now receives `accountIdFieldNames`** as `PIKA_ACCOUNT_ID_FIELD_NAMES`. Consumers with custom names get them honored in Strands too.
+
+### Deprecated
+
+- **`transformSessionAccountContext`** in `session-account-context.ts`. Pika no longer calls it. Use `scopeSessionsToAccount`.
+
+### Security
+
+- With `chatAdminApiAuth: 'NONE'` (the default), every chat-admin API caller is trusted, including the `roles` and `userId` it sends. Set `chatAdminApiAuth: 'IAM'` in production.
+
+### Migration
+
+1. Run `pika sync`. No `pika-app` upgrade is needed, because the new hooks are in `apps/pika-chat/src/lib/custom/**`, which is already protected.
+2. If you overrode `transformSessionAccountContext`, call its logic from `scopeSessionsToAccount`.
+3. If you rely on roles stored on the ChatUser record in role-gated apps, expect a delay: a change to the record takes effect when the user's session cookie refreshes.
+4. If you set `accountIdFieldNames`, check that the Strands converse Lambda should now use those names.
+5. Set `chatAdminApiAuth: 'IAM'` for production stacks.
+
 ## [0.33.1] - 2026-10-19
 
 ### Fixed

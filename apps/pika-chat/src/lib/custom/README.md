@@ -17,15 +17,32 @@ Extension points are exported functions you can override to add deployment-speci
 | `session-read-only.ts` | `isSessionReadOnly(session, user)` | `false` | Mark additional session types as read-only (cross-cutting; per-source rules go on the source descriptor) |
 | `request-user-id-resolver.ts` | `resolveRequestUserId(requestedUserId, sessionUserId, ctx)` | `undefined` | Override the user id used by the message routes (e.g., honor a separate cookie for legacy actions) |
 | `session-entity-extraction.ts` | `getSessionEntityValue(session)` | `session.entityId` | Extract entity/account ID from a session |
-| `session-account-context.ts` | `transformSessionAccountContext(session, user)` | session unchanged | Backfill missing account context before sessions are returned |
+| `session-account-context.ts` | `transformSessionAccountContext(session, user)` | session unchanged | **Deprecated, no longer called.** Move per-session logic into `scopeSessionsToAccount` |
+| `session-account-context.ts` | `scopeSessionsToAccount(sessions, user, chatAppId, viewingAnotherUser)` | sessions unchanged | Filter the session list a user sees |
+| `session-account-context.ts` | `scopePinnedResultsToAccount(results, user, chatAppId)` | results unchanged | Filter pinned-session search results |
 | `server-hooks.ts` | `transformCustomUserData(data, ctx)` | data unchanged | Transform customUserData before it reaches the converse Lambda |
 | `server-hooks.ts` | `onAuthProviderCallback(event, provider)` | no-op | Run logic on OAuth provider callbacks |
 | `server-hooks.ts` | `onBeforeAuth(event, pathName, user)` | `{ clearSession: false }` | Clear the session conditionally before auth proceeds |
 | `chat-user-auth.ts` | `shouldBypassChatUserRoleMerge(user)` | `false` | Use token roles as source-of-truth; skip DDB role merge |
+| `chat-user-auth.ts` | `rolesForChatUserRecord(roles)` | roles unchanged | Choose the roles persisted on the stored ChatUser record |
+| `chat-user-auth.ts` | `mergeStoredRolesIntoSession(sessionRoles, storedRoles)` | `storedRoles \|\| sessionRoles` | Choose the roles the session carries after a periodic refresh |
+| `chat-user-auth.ts` | `mergeChatUserCustomData(user, chatUser)` | `chatUser.customData \|\| user.customData` | Choose the customData the session carries after a periodic refresh |
+| `chat-user-auth.ts` | `resolveChatUserAccountWriteBack(user, chatUser)` | `undefined` | Return customData to write back to the stored ChatUser record |
 | `admin/site-admin-extensions.ts` | `customAdminPages` | `[]` | Append consumer pages to the Site Admin nav; each NavItem's `pageComponent` renders at its `/admin/<slug>` url |
 | `message-visibility.ts` | `shouldRenderMessage(message)` | `true` | Hide messages from the rendered transcript (e.g. app-composed user turns) without removing them from the session |
 | `chat-html-allowed-tags.ts` | `allowedCustomTags`, `allowedCustomAttrs` | `[]`, `{}` | Allow-list custom elements (and per-tag attributes) to survive the chat/trace HTML sanitizer, or lift a default ban such as `img`; on* handlers are always stripped |
 | `trace-content-access.ts` | `mayReceiveTraceContent(user, tracesFeatureEnabled)` | `true` | Withhold trace content (system prompt, tool inputs and outputs) from some users: the trace route returns 403, message reads drop inline traces, and the live stream carries only label-only step frames. It doesn't cover `detailedTraces`, which stays a UI-only setting |
+
+### Local development files
+
+These files back the local-development overrides described in `apps/pika-chat/readme-dev.md`. All of them are refused inside ECS or Lambda.
+
+| File | Export | Purpose |
+|------|--------|---------|
+| `local-api-route.ts` | `resolveApiRoute(isLocal, deployedBaseUrl, path, localBaseUrl?)` | Send chat API calls to a loopback `LOCAL_CHAT_API_BASE_URL`, unsigned; deployed calls stay SigV4-signed |
+| `local-converse-route.ts` | `resolveLocalConverseRoute(isLocal, configuredUrl, localOverride?)` | Send converse calls to `LOCAL_CONVERSE_FUNCTION_URL` (loopback or a Lambda function URL) |
+| `local-mock-auth-provider.ts` | default export `LocalMockAuthProvider` | Auth provider used when `PIKA_LOCAL_MOCK_AUTH=true` in local dev |
+| `local-mock-user.ts` | `localMockUser(env)` | Build the mock user from `PIKA_LOCAL_MOCK_*` |
 
 ### How to override
 

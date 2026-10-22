@@ -195,6 +195,44 @@ The application will be available at `http://localhost:5173`
 - **Fast Refresh**: Preserves component state
 - **Source Maps**: Debug with original source code
 
+### Generate `.env.local` and Skip Sign-In
+
+`apps/pika-chat` has two tools for running against a deployed stage. The full reference is in [`apps/pika-chat/readme-dev.md`](https://github.com/rithum/pika/blob/main/apps/pika-chat/readme-dev.md).
+
+```bash
+cd apps/pika-chat
+
+# Write .env.local from the deployed pika-chat ECS task definition (needs AWS credentials)
+pnpm run env:local test -w
+
+# Optional: start a local Strands converse server, then vite
+pnpm run dev:nosudo
+```
+
+`env:local` also sets `PIKA_LOCAL_MOCK_AUTH=true` and points `LOCAL_CONVERSE_FUNCTION_URL` at a local Strands server. Plain `pnpm run dev` reads `.env.local`, so `dev:nosudo` is optional.
+
+**Mock sign-in.** With `PIKA_LOCAL_MOCK_AUTH=true`, local dev skips the login round-trip and signs you in as a mock user. Configure it with these variables:
+
+| Variable | Meaning |
+|----------|---------|
+| `PIKA_LOCAL_MOCK_USER_ID` | User id. Default `local-dev-user`. |
+| `PIKA_LOCAL_MOCK_FIRST_NAME`, `PIKA_LOCAL_MOCK_LAST_NAME` | Display name. |
+| `PIKA_LOCAL_MOCK_USER_TYPE` | `internal-user` (default) or `external-user`. |
+| `PIKA_LOCAL_MOCK_ROLES` | Comma-separated roles. Default `pika:content-admin,pika:site-admin`. |
+| `PIKA_LOCAL_MOCK_ACCOUNT_ID`, `PIKA_LOCAL_MOCK_ACCOUNT_TYPE` | Account context. When unset, the account dialog prompts. |
+| `PIKA_LOCAL_MOCK_AUTH_PROVIDER` | Auth provider name on the mock user. |
+
+Changing a `PIKA_LOCAL_MOCK_*` value takes a restart and a cookie clear.
+
+**Routing overrides.** Both are read from `.env.local`:
+
+- `LOCAL_CHAT_API_BASE_URL` sends chat API calls to a loopback URL, unsigned. Any other host is rejected.
+- `LOCAL_CONVERSE_FUNCTION_URL` sends converse calls to a loopback URL or a Lambda function URL. Any other host throws, so SigV4 headers can't go to an arbitrary host.
+
+{% aside type="caution" title="Local only" %}
+The mock sign-in and the unsigned routes are refused when `ECS_CONTAINER_METADATA_URI` or `AWS_EXECUTION_ENV` is set, so they can't run inside ECS or Lambda.
+{% /aside %}
+
 ## Step 6: Run Local Backend (Optional)
 
 Run Pika backend services locally for full functionality.

@@ -631,6 +631,30 @@ The value is passed to Lambda functions as the `PIKA_ACCOUNT_ID_FIELD_NAMES` env
 Adding field names is non-breaking. Existing sessions that already have `accountId` or `account_id` are unaffected. New or legacy sessions that only have an account ID under a custom field name will now surface it in admin queries.
 {% /aside %}
 
+## Session Identity Field Names
+
+Controls which `customData` keys the Strands converse Lambda copies onto an existing session when none of them is present yet, for example the id of a delegated user acting on behalf of the session's owner.
+
+```typescript
+sessionIdentityFieldNames?: string[];
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `sessionIdentityFieldNames` | `string[]` | unset (copies nothing) | Custom-data keys backfilled onto an existing session when no key in the list is present on it. |
+
+**Example:**
+
+```typescript
+// pika-config.ts
+export const pikaConfig: PikaConfig = {
+    // ... project names, siteFeatures ...
+    sessionIdentityFieldNames: ['delegateId', 'delegateEmail']
+};
+```
+
+The value is passed to the Strands converse Lambda as the `PIKA_SESSION_IDENTITY_FIELD_NAMES` environment variable (comma-joined). If an account is pinned to the session, a failure to pin it raises, while a failure writing only the identity keys is logged and the existing session is returned.
+
 ## Complete Example
 
 ```typescript

@@ -96,6 +96,31 @@ const betaOverride = {
 };
 ```
 
+#### 2.5. Additional External Access Control (Additive Grant)
+
+```typescript
+if (
+    userType === 'external-user' &&
+    override.additionalExternalAccessControl?.length > 0 &&
+    override.additionalExternalAccessControl.includes(userEntity)
+) {
+    return ALLOW_ACCESS;
+}
+// A non-match does not deny: evaluation continues with 2c and Level 3
+```
+
+Unlike the exclusive lists, this list only adds access. An external user whose entity is on the list is allowed, and everyone else is evaluated by the rules below. Internal users are never matched by this list. If `exclusiveUserIdAccessControl` is also set, the exclusive user ID list takes precedence, `additionalExternalAccessControl` is ignored and a warning is logged.
+
+**Example**: Let one extra account in without narrowing the app to a list
+
+```typescript
+const extraAccountOverride = {
+    enabled: true,
+    additionalExternalAccessControl: ['000000001']
+    // Users who pass userTypes/userRoles keep their access; this account's external users get in too
+};
+```
+
 #### 2c. Exclusive Entity Access Control (Second Priority)
 
 ```typescript
@@ -317,6 +342,68 @@ const emergencyOverride = {
     // Emergency: Only content admins can access
 };
 ```
+
+## Configure the Access-Control Panel
+
+The Site Admin access-control panel has a who-can-access builder, a plain-language summary, a home-page tile control and exclusive user and entity lists. It edits the override fields described above, including `additionalExternalAccessControl`. "Site default" on the home-page tile writes `null` for the override's `homePageFilterRules`, which means the chat app inherits the site setting.
+
+### Where the Panel's Labels Come From
+
+- **Role labels and role checkboxes**: `siteFeatures.siteAdmin.accessControl.roleLabels` and `predefinedRoles`, merged over the built-in `pika:content-admin` ("Content Admin") and `pika:site-admin` ("Site Admin"). A role with no label shows its raw name.
+- **The all-internal-users option**: `internalUsersLabel`, "All internal users" by default.
+- **Entity wording** (for example "Account" and "Accounts"): `siteFeatures.entity.displayNameSingular` and `displayNamePlural`.
+- **Entity ID validation**: `accountIdPattern`. With no pattern the panel accepts any non-empty ID.
+
+### The `accessControl` Site Config
+
+```typescript
+// pika-config.ts
+export const pikaConfig: PikaConfig = {
+    siteFeatures: {
+        entity: {
+            enabled: true,
+            attributeName: 'accountId',
+            displayNameSingular: 'Account',
+            displayNamePlural: 'Accounts'
+        },
+        siteAdmin: {
+            websiteEnabled: true,
+            accessControl: {
+                accountIdPattern: '[0-9]{9}',
+                accountIdPatternDescription: 'a 9-digit account ID',
+                roleLabels: { 'support-agent': 'Support agent' },
+                predefinedRoles: ['support-agent'],
+                internalUsersLabel: 'All staff'
+            }
+        }
+    }
+};
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `accountIdPattern` | unset (any non-empty ID) | A regular expression an ID on `additionalExternalAccessControl` must match **in full**. Pika wraps it as `^(?:pattern)$`, so `[0-9]{9}` rejects a 10-digit ID. A pattern that isn't a valid regular expression fails `cdk synth`. |
+| `accountIdPatternDescription` | unset | A readable form of the pattern, added to validation errors. |
+| `roleLabels` | built-in pika labels | Display labels by role value, merged over the built-ins. |
+| `predefinedRoles` | `pika:content-admin`, `pika:site-admin` | Roles offered as checkboxes, appended to the built-ins and de-duplicated. |
+| `internalUsersLabel` | `All internal users` | Label for the all-internal-users option. |
+
+The pattern is enforced in two places: the admin UI, and the chat-admin API, which rejects an override whose `additionalExternalAccessControl` has an ID that doesn't match, with an `invalid account ids` error. The exclusive entity lists aren't checked against the pattern. Leave the whole `accessControl` block out to keep today's behavior.
+
+## Session Roles in chat-app-by-rules
+
+When pika-chat asks the chat-admin API which chat apps a user may see, it sends the roles on the user's session. The by-rules evaluation uses those roles in place of the roles stored on the ChatUser record.
+
+- A role changed directly on the ChatUser record takes effect when the user's session cookie refreshes, not before.
+- A provider that returns `[]` roles now denies role-gated apps. A missing or malformed `roles` value falls back to the stored roles.
+
+{% aside type="caution" title="The chat-admin API trusts its caller" %}
+With `chatAdminApiAuth: 'NONE'` (the default), every chat-admin API caller is trusted, including the `roles` and `userId` it sends, and including override writes. Set `chatAdminApiAuth: 'IAM'` in production so that only SigV4-signed callers are accepted.
+{% /aside %}
+
+## Update Home-Page Filter Rules
+
+`homePageFilterRules` on an override is updatable through the chat-admin API. Each rule is validated: the values in a rule's `userTypes` and `chatAppUserTypes` must be `internal-user` or `external-user`. Passing `null` removes the override and falls back to the site default. A value equal to the stored one isn't rewritten.
 
 ## Configuration Patterns
 

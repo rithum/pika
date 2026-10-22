@@ -109,6 +109,19 @@ Feature flags are typically configured in `pika-config.ts` rather than environme
 |----------|------|---------|-------------|
 | `PIKA_ACCOUNT_ID_FIELD_NAMES` | `string` (comma-separated) | `'accountId,account_id'` | Comma-separated list of field names to search when normalizing an account ID out of `sessionAttributes`. Tried in order. Set automatically by CDK from `pikaConfig.accountIdFieldNames`. Most consumers do not need to override this. |
 
+### Session Identity Field Names
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `PIKA_SESSION_IDENTITY_FIELD_NAMES` | `string` (comma-separated) | empty | Custom-data keys the Strands converse Lambda copies onto an existing session when none of them is present yet. Set automatically by CDK from `pikaConfig.sessionIdentityFieldNames`. |
+
+### Access-Control Account ID Pattern
+
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `PIKA_ACCOUNT_ID_PATTERN` | `string` | unset | Regular expression an ID on an override's `additionalExternalAccessControl` must match in full. Set automatically by CDK from `siteFeatures.siteAdmin.accessControl.accountIdPattern`. When unset, any non-empty ID is accepted. |
+| `PIKA_ACCOUNT_ID_PATTERN_DESCRIPTION` | `string` | unset | Readable form of the pattern, added to validation errors. Set from `accountIdPatternDescription`. |
+
 ## Local Development
 
 ### Local .env File Example
