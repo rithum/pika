@@ -5,6 +5,9 @@
     import SimpleDropdown from 'pika-ux/pika/simple-dropdown/simple-dropdown.svelte';
     import { Checkbox } from 'pika-ux/shadcn/checkbox/index.js';
     import { Label } from 'pika-ux/shadcn/label/index.js';
+    import type { AppState } from '$lib/client/app/app.state.svelte';
+    import { getContext } from 'svelte';
+    import { accessControlConfigFromSiteFeatures, describeRole, type ResolvedAccessControlConfig } from './access-control-config';
 
     interface Props {
         rulesObj: AccessRules | undefined;
@@ -17,6 +20,7 @@
         entityNameCapitalized?: string; // "Chat app", "Feature", etc.
         featureEnabled?: boolean;
         disabled?: boolean;
+        accessControlConfig?: ResolvedAccessControlConfig;
     }
 
     let {
@@ -29,7 +33,11 @@
         entityNameCapitalized = 'Chat app',
         featureEnabled = true,
         disabled = false,
+        accessControlConfig,
     }: Props = $props();
+
+    const appState = getContext<AppState | undefined>('appState');
+    let resolvedAccessControlConfig = $derived(accessControlConfig ?? accessControlConfigFromSiteFeatures(appState?.siteAdmin?.siteFeatures));
 
     let rulesObjToShow = $derived(isOverrideMode ? rulesObj : rulesObjOriginal);
 </script>
@@ -166,19 +174,12 @@
                             rulesObj.userRoles = rulesObj.userRoles.filter((r) => r !== (item as UserRole));
                         },
                         predefinedOptions: {
-                            items: ['pika:content-admin', 'pika:site-admin'] as UserRole[],
+                            items: resolvedAccessControlConfig.predefinedRoles as UserRole[],
                             optionTypeName: 'role',
                             optionTypeNamePlural: 'roles',
                             mapping: {
                                 value: (item) => item as string,
-                                label: (item) => {
-                                    // Convert role values to readable labels
-                                    const roleLabels: Record<string, string> = {
-                                        'pika:content-admin': 'Content Admin',
-                                        'pika:site-admin': 'Site Admin',
-                                    };
-                                    return roleLabels[item as string] || (item as string);
-                                },
+                                label: (item) => describeRole(item as string, resolvedAccessControlConfig.roleLabels),
                             },
                         },
                         addValueInputPlaceholder: 'Choose or provide a role...',
