@@ -5885,6 +5885,9 @@ export interface CreateSharedSessionRequest {
     sessionId: string;
     sessionUserId: string;
     chatAppId: string;
+
+    /** Roles from the caller's verified session; when present they replace the stored user's roles for the access check. */
+    roles?: string[];
 }
 
 export interface CreateSharedSessionResponse {

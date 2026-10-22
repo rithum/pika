@@ -72,7 +72,7 @@ import {
     updateSession,
     updateSessionTitleInDdb
 } from './chat-ddb';
-import { getMatchingChatApps } from './get-matching-chat-apps';
+import { getMatchingChatApps, withSessionRoles } from './get-matching-chat-apps';
 import { createSessionToken, getAccountBackfillAttributes, hasSessionAccountContext, getNextMessageId, validateUserCanAccessSession } from './utils';
 import { markSessionForInsightsOnThumbsDown } from './session-quality';
 
@@ -584,7 +584,7 @@ export async function createSharedSessionForSession(user: ChatUser<RecordOrUndef
         }
 
         // The internal user must have access to the chat app of the session or else we throw an error
-        const matchingChatApps = getMatchingChatApps(user, false, [], [chatApp]);
+        const matchingChatApps = getMatchingChatApps(withSessionRoles(user, request.roles), false, [], [chatApp]);
 
         if (!matchingChatApps || matchingChatApps.length === 0) {
             throw new HttpStatusError('Not authorized to share this session', 403);

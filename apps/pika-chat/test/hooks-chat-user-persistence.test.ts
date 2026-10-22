@@ -9,6 +9,7 @@ const deserializeMock = jest.fn<(event: unknown, km: unknown) => Rec | undefined
 const serializeMock = jest.fn<(event: unknown, user: Rec, km: unknown) => void>();
 const validateCookiesMock = jest.fn<(event: unknown, km: unknown) => { overallStatus: string; details?: unknown }>();
 const writeBackMock = jest.fn<(user: Rec, chatUser: Rec) => Rec | undefined>();
+const bypassMock = jest.fn<() => boolean>();
 
 jest.mock('$lib/server/auth', () => ({
     loadAuthProvider: async () => ({ authenticate: (event: unknown) => authenticateMock(event) }),
@@ -16,7 +17,7 @@ jest.mock('$lib/server/auth', () => ({
     NotAuthenticatedError: class extends Error {}
 }));
 jest.mock('$lib/custom/chat-user-auth', () => ({
-    shouldBypassChatUserRoleMerge: () => false,
+    shouldBypassChatUserRoleMerge: () => bypassMock(),
     rolesForChatUserRecord: (roles: string[] | undefined) => (roles ? [...roles, 'tagged'] : roles),
     mergeStoredRolesIntoSession: (sessionRoles: string[] | undefined, storedRoles: string[] | undefined) => [...(storedRoles ?? sessionRoles ?? []), 'merged'],
     mergeChatUserCustomData: (user: Rec, chatUser: Rec) => ({ ...((chatUser.customData as Rec) ?? {}), mergedFor: user.userId }),
@@ -87,7 +88,8 @@ describe('hooks.server chat-user persistence seams', () => {
     beforeEach(async () => {
         logSpy = jest.spyOn(console, 'log').mockImplementation(() => undefined);
         warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
-        for (const m of [authenticateMock, getChatUserMock, createChatUserMock, deserializeMock, serializeMock, validateCookiesMock, writeBackMock]) m.mockReset();
+        for (const m of [authenticateMock, getChatUserMock, createChatUserMock, deserializeMock, serializeMock, validateCookiesMock, writeBackMock, bypassMock]) m.mockReset();
+        bypassMock.mockReturnValue(false);
         writeBackMock.mockReturnValue(undefined);
         createChatUserMock.mockImplementation(async (u) => u);
         await init({} as never);
@@ -173,6 +175,34 @@ describe('hooks.server chat-user persistence seams', () => {
             await handle({ event: makeEvent(), resolve } as never);
 
             expect(createChatUserMock).toHaveBeenCalledWith({ ...storedUser, customData: writeBack });
+        });
+
+        it('gives the session user the write-back customData when the write succeeds', async () => {
+            const writeBack = { accountId: '000000001' };
+            writeBackMock.mockReturnValue(writeBack);
+
+            await handle({ event: makeEvent(), resolve } as never);
+
+            expect(serializeMock.mock.calls[0][1].customData).toEqual({ ...writeBack, mergedFor: 'u1' });
+        });
+
+        it('does not give the session user the write-back customData when the write throws', async () => {
+            writeBackMock.mockReturnValue({ accountId: '000000001' });
+            createChatUserMock.mockRejectedValue(new Error('ddb down'));
+
+            await handle({ event: makeEvent(), resolve } as never);
+
+            expect(serializeMock.mock.calls[0][1].customData).toEqual({ fromStore: true, mergedFor: 'u1' });
+        });
+
+        it('creates the missing chat user with roles from rolesForChatUserRecord when the role merge is bypassed', async () => {
+            bypassMock.mockReturnValue(true);
+            getChatUserMock.mockResolvedValue(undefined);
+
+            await handle({ event: makeEvent(), resolve } as never);
+
+            expect(createChatUserMock).toHaveBeenCalledTimes(1);
+            expect(createChatUserMock.mock.calls[0][0].roles).toEqual(['x', 'tagged']);
         });
 
         it('does not create a chat user when the hook returns nothing', async () => {

@@ -91,3 +91,15 @@ describe('validateChatAppOverride - userRoles format', () => {
         expect(errors).toHaveLength(1);
     });
 });
+
+describe('validateChatAppOverride - homePageFilterRules user type shape', () => {
+    it('returns an error instead of throwing when userTypes is not an array', () => {
+        const errors = validateChatAppOverride({ enabled: true, homePageFilterRules: [{ userTypes: 5 }] } as any);
+        expect(errors).toEqual(['homePageFilterRules userTypes and chatAppUserTypes must be arrays']);
+    });
+
+    it('returns an error instead of throwing when chatAppUserTypes is a string', () => {
+        const errors = validateChatAppOverride({ enabled: true, homePageFilterRules: [{ chatAppUserTypes: 'internal-user' }] } as any);
+        expect(errors).toEqual(['homePageFilterRules userTypes and chatAppUserTypes must be arrays']);
+    });
+});

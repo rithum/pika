@@ -22,6 +22,11 @@ describe('resolveApiRoute', () => {
         expect(route.url.toString()).toBe('http://127.0.0.1:3001/api/chat?x=1');
     });
 
+    it.each(['http://localhost:4000/dev', 'http://localhost:4000/dev/'])('keeps the path prefix of %s when joining an absolute path', (base) => {
+        const route = resolveApiRoute(true, DEPLOYED, '/chat/foo', base);
+        expect(route.url.toString()).toBe('http://localhost:4000/dev/chat/foo');
+    });
+
     it('accepts an IPv6 loopback base', () => {
         const route = resolveApiRoute(true, DEPLOYED, '/api/chat', 'http://[::1]:3001');
         expect(route.sign).toBe(false);

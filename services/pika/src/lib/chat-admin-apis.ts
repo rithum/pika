@@ -1358,6 +1358,10 @@ export function validateChatAppOverride(override: Partial<ChatAppOverride>): str
                     errors.push('homePageFilterRules entries must be objects');
                     break;
                 }
+                if ((rule.userTypes != null && !Array.isArray(rule.userTypes)) || (rule.chatAppUserTypes != null && !Array.isArray(rule.chatAppUserTypes))) {
+                    errors.push('homePageFilterRules userTypes and chatAppUserTypes must be arrays');
+                    break;
+                }
                 const badTypes = [...(rule.userTypes ?? []), ...(rule.chatAppUserTypes ?? [])].filter((t) => !validUserTypes.includes(t));
                 if (badTypes.length > 0) {
                     errors.push(`homePageFilterRules contains invalid user types: ${badTypes.join(', ')}`);

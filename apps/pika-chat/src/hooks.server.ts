@@ -218,7 +218,7 @@ export const handle: Handle = async ({ event, resolve }) => {
         if (shouldRefreshChatUser) {
             try {
                 // Get current ChatUser data from DynamoDB
-                let currentChatUser = await getChatUser(user.userId);
+                let currentChatUser = await getChatUser<RecordOrUndef>(user.userId);
                 // console.log('[Hooks Debug] Raw ChatUser from database:', {
                 //     userId: user.userId,
                 //     fullChatUser: currentChatUser,
@@ -234,6 +234,7 @@ export const handle: Handle = async ({ event, resolve }) => {
                         // record is created. Create it now rather than clearing the valid session.
                         const newChatUser = { ...user } as any;
                         delete newChatUser.authData;
+                        newChatUser.roles = rolesForChatUserRecord(user.roles);
                         const createdChatUser = await createChatUser(newChatUser);
                         if (!createdChatUser) {
                             console.error('[Hooks] Failed to create ChatUser for authenticated user - clearing cookies:', {
@@ -311,6 +312,19 @@ export const handle: Handle = async ({ event, resolve }) => {
                     // });
                 }
 
+                const refreshAccountWriteBack = resolveChatUserAccountWriteBack(user, currentChatUser);
+                if (refreshAccountWriteBack) {
+                    try {
+                        await createChatUser({ ...currentChatUser, customData: refreshAccountWriteBack });
+                        currentChatUser = { ...currentChatUser, customData: refreshAccountWriteBack };
+                    } catch (e) {
+                        console.warn('[Hooks] Could not persist the resolved account to the ChatUser record:', {
+                            userId: user.userId,
+                            error: e instanceof Error ? e.message : String(e)
+                        });
+                    }
+                }
+
                 // Check if custom data has changed
                 const cookieCustomData = JSON.stringify(user.customData || {});
                 const chatUserCustomData = JSON.stringify(currentChatUser.customData || {});
@@ -323,18 +337,6 @@ export const handle: Handle = async ({ event, resolve }) => {
                 //         chatUserCustomData: currentChatUser.customData
                 //     });
                 // }
-
-                const refreshAccountWriteBack = resolveChatUserAccountWriteBack(user, currentChatUser);
-                if (refreshAccountWriteBack) {
-                    try {
-                        await createChatUser({ ...currentChatUser, customData: refreshAccountWriteBack });
-                    } catch (e) {
-                        console.warn('[Hooks] Could not persist the resolved account to the ChatUser record:', {
-                            userId: user.userId,
-                            error: e instanceof Error ? e.message : String(e)
-                        });
-                    }
-                }
 
                 // Merge ChatUser data into the cookie user
                 if (coreDataChanged || customDataChanged) {

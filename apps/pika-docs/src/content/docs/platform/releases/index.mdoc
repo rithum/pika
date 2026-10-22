@@ -11,7 +11,7 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 - **A redesigned access-control panel.** A who-can-access builder, a plain-language summary, a home-page tile control and slimmer exclusive lists. Role labels, the account ID check and the all-internal-users label come from `siteFeatures.siteAdmin.accessControl`.
 - **`additionalExternalAccessControl` override field.** An additive grant for external users, step 2.5 of the access ladder. A non-match doesn't deny.
-- **Session roles in chat-app-by-rules.** The by-rules evaluation uses the session's roles, sent by pika-chat, in place of the stored ChatUser's.
+- **Session roles in chat-app-by-rules and session sharing.** Both access checks use the session's roles, sent by pika-chat, in place of the stored ChatUser's.
 - **`homePageFilterRules` is updatable and validated** through the admin API.
 - **Six new `lib/custom` hooks** with identity defaults: `scopeSessionsToAccount`, `scopePinnedResultsToAccount`, `rolesForChatUserRecord`, `mergeStoredRolesIntoSession`, `mergeChatUserCustomData` and `resolveChatUserAccountWriteBack`.
 - **`pikaConfig.sessionIdentityFieldNames`** copies custom-data keys onto an existing session in the Strands converse Lambda.
