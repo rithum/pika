@@ -1647,6 +1647,21 @@ describe('MessageSegmentProcessor', () => {
                 expect(offsets(streamed)).toEqual(expected);
             });
 
+            it('falls back to tag and content when a streamed offset disagrees, without running the handler twice', () => {
+                const fullMessage = 'A <metadata-tag>same</metadata-tag> B <metadata-tag>same</metadata-tag>';
+                const segments: ProcessedSegment[] = [];
+                processor.parseMessage(fullMessage, segments, true);
+                const streamed = segments.filter((s) => 'isMetadata' in s) as MetadataTagSegment[];
+                expect(streamed).toHaveLength(2);
+                streamed[0].hasCalledHandler = true;
+                streamed[0].offset = 999;
+
+                processor.doneStreaming(segments, fullMessage);
+
+                const reparsed = segments.filter((s) => 'isMetadata' in s) as MetadataTagSegment[];
+                expect(reparsed.map((s) => s.hasCalledHandler)).toEqual([true, undefined]);
+            });
+
             it('never leaves the streaming cursor on a completed plain-text response', () => {
                 const fullMessage = 'No items were verified fixed.';
                 const segments: ProcessedSegment[] = [];

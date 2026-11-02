@@ -532,17 +532,31 @@ export class MessageSegmentProcessor implements SegmentProcessor {
 
     doneStreaming(segments: ProcessedSegment[], fullMessage?: string): void {
         if (fullMessage !== undefined) {
-            const handled = new Set<string>();
+            const handled: MetadataTagSegment[] = [];
             for (const seg of segments) {
                 if ('isMetadata' in seg && seg.isMetadata && seg.hasCalledHandler) {
-                    handled.add(`${seg.tag}@${seg.offset}`);
+                    handled.push(seg);
                 }
             }
             segments.splice(0, segments.length);
             this.parseMessage(fullMessage, segments, false);
-            for (const seg of segments) {
-                if ('isMetadata' in seg && seg.isMetadata && handled.has(`${seg.tag}@${seg.offset}`)) {
+            const reparsedMetadata = segments.filter((seg): seg is MetadataTagSegment => 'isMetadata' in seg && seg.isMetadata);
+            const unmatched: MetadataTagSegment[] = [];
+            for (const seg of reparsedMetadata) {
+                const idx = handled.findIndex((h) => h.tag === seg.tag && h.offset === seg.offset);
+                if (idx === -1) {
+                    unmatched.push(seg);
+                } else {
                     seg.hasCalledHandler = true;
+                    handled.splice(idx, 1);
+                }
+            }
+            // Offsets can drift when a carried-over opener is rebuilt at a different length; content then decides.
+            for (const seg of unmatched) {
+                const idx = handled.findIndex((h) => h.tag === seg.tag && h.rawContent === seg.rawContent);
+                if (idx !== -1) {
+                    seg.hasCalledHandler = true;
+                    handled.splice(idx, 1);
                 }
             }
             // The reparse can miss a segment in its modified set, and no renderer may keep a streaming cursor after completion.

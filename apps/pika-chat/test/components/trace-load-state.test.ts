@@ -181,4 +181,29 @@ describe('ChatAppState trace loading', () => {
         expect(state.getLoadedTraces('s1:1')).toBeUndefined();
         expect(state.getTraceLoadState('s1:1').status).toBe('idle');
     });
+
+    it('drops a fetch that resolves after a session switch', async () => {
+        let resolveTrace!: (r: Response) => void;
+        const fetchz = vi.fn((url: string) => {
+            if (url.startsWith('/api/trace/')) return new Promise<Response>((r) => (resolveTrace = r));
+            if (url === '/api/session/share/access') {
+                return Promise.resolve(
+                    json({
+                        success: true,
+                        hasAccess: true,
+                        sessionData: { sessionId: 's2', userId: 'someone-else', shareId: 'sh1', title: 't' },
+                    })
+                );
+            }
+            return Promise.resolve(json({}));
+        });
+        const { state } = makeState(fetchz as never);
+        const pending = state.loadTracesForMessage(makeMessage());
+        await state.loadSharedSession('sh1');
+        resolveTrace(json({ traces: TRACES }));
+        await pending;
+
+        expect(state.getLoadedTraces('s1:1')).toBeUndefined();
+        expect(state.getTraceLoadState('s1:1').status).toBe('idle');
+    });
 });
