@@ -1,7 +1,33 @@
 {
-  "latestVersion": "0.34.0",
-  "currentDevelopment": "0.34.0",
+  "latestVersion": "0.35.0",
+  "currentDevelopment": "0.35.0",
   "releases": [
+    {
+      "version": "0.35.0",
+      "date": "2026-11-02",
+      "status": "released",
+      "breaking": false,
+      "summary": "Claude Sonnet 5.5 becomes the TypeScript converse default model, at a lower list price. pika stops creating the Sonnet 4 and Sonnet 4.5 inference profiles, which are retired or legacy on Bedrock. Claude 5.x supervisor agents, markdown tables, reasoning reload, auto-follow scrolling, file drops, context item IDs and Strands session handling are fixed.",
+      "highlights": [
+        "Changed: the TypeScript converse default model is Claude Sonnet 5.5 (us.anthropic.claude-sonnet-5-5, was Sonnet 4.6), at a lower list price ($2/$10 per million tokens, was $3/$15). To keep the old model, set foundationModel to us.anthropic.claude-sonnet-4-6 on the agent.",
+        "Changed: pika no longer creates the Claude Sonnet 4 and Sonnet 4.5 inference profiles. Their SSM parameters and the Strands profile mapping are removed on deploy; the Bedrock profiles are left in the account, and the model IDs stay in the registry as legacy.",
+        "Changed: pika-chat jest runs as native ESM (--experimental-vm-modules), with jest.unstable_mockModule and await import(...).",
+        "Changed: 5.x invoke bodies built by buildModelInvokeBodyAnthropic omit temperature, top_p and top_k.",
+        "Changed: message replication to OpenSearch hydrates offloaded traces up to 8 reads ahead, keeping write order; a failed read degrades only its record.",
+        "Changed: the Strands converse handler streams a generic error message instead of the raw exception text.",
+        "Fixed: supervisor agents on Claude 5.x no longer show the raw model response as JSON.",
+        "Fixed: aligned markdown tables keep their alignment in chat and trace views; the sanitizer keeps style on th and td only when it is exactly text-align: left|center|right.",
+        "Fixed: allowedCustomAttrs now limits attributes on lifted built-in tags such as img, not just on custom elements.",
+        "Fixed: expanded Answer Reasoning reloads after a session refresh.",
+        "Fixed: scrolling up during a streamed answer stops auto-follow for touch, scrollbar drag, keyboard and short wheel moves; scrolling inside a code block or table no longer stops it.",
+        "Fixed: the window-level file-drop guard no longer blocks drops into native file inputs, and shows a no-drop cursor when file upload is disabled.",
+        "Fixed: metadata tag handlers run exactly once per tag after streaming completes.",
+        "Fixed: context items with numeric, 0 or missing IDs get one consistent ID across the prompt, repeat detection and the sent_contexts ledger, in both the TypeScript and Strands paths.",
+        "Fixed: Strands session account backfill never writes an empty accountId, fails the turn when a concurrent writer stored account fields without an account ID, and retries once after losing the session-create race.",
+        "Fixed: Strands usage counts swarm cache tokens when the agent result reports none.",
+        "Fixed: local Strands development loads the Sonnet 4.6, 5 and 5.5 inference profiles."
+      ]
+    },
     {
       "version": "0.34.0",
       "date": "2026-10-22",

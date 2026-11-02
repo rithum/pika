@@ -50,7 +50,7 @@ const amazonDefaultConfig: AmazonConfig = {};
  * the same model interface.
  *
  * Environment variables follow the pattern: INFERENCE_PROFILE_ANTHROPIC_ModelName
- * Example: INFERENCE_PROFILE_ANTHROPIC_Claude4_5Sonnet = "arn:aws:bedrock:..."
+ * Example: INFERENCE_PROFILE_ANTHROPIC_Claude5_5Sonnet = "arn:aws:bedrock:..."
  */
 function applyInferenceProfilesFromEnv<T>(obj: T): T {
     Object.entries(obj as any).forEach(([provider, models]: [string, any]) => {

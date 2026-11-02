@@ -7,6 +7,24 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 
 ## Current Version
 
+### What's New in 0.35.0
+
+- **Claude Sonnet 5.5 is the TypeScript converse default** (`us.anthropic.claude-sonnet-5-5`, was Sonnet 4.6). List price falls from $3/$15 to $2/$10 per million input/output tokens.
+- **No more Sonnet 4 and Sonnet 4.5 inference profiles.** pika stops creating them and removes their SSM parameters on deploy. The Bedrock profiles stay in the account, and the model IDs stay in the registry as legacy.
+- **Fixes for Claude 5.x supervisor agents.** The raw model response no longer shows as JSON.
+- **Chat UI fixes.** Aligned markdown tables keep their alignment, Answer Reasoning reloads after a session refresh, and auto-follow stops on any scroll-up input.
+- **Context item IDs are consistent.** Numeric, `0` and missing IDs no longer cause full re-sends every turn.
+- **Strands fixes.** Safer session account backfill, swarm cache tokens in usage, and a generic streamed error message.
+- **pika-chat jest runs as native ESM.** See Contributing.
+
+**Upgrade impact**:
+- Every agent and collaborator without a `foundationModel` now runs on Sonnet 5.5. To keep the old model, set `foundationModel: 'us.anthropic.claude-sonnet-4-6'`.
+- The `Claude4Sonnet` and `Claude4_5Sonnet` inference-profile SSM parameters are removed on deploy. The Bedrock profiles are left in place; delete them with `aws bedrock delete-inference-profile` if you want them gone.
+- `buildModelInvokeBodyAnthropic` omits `temperature`, `top_p` and `top_k` for 5.x models.
+- No `pika-app` upgrade is needed.
+
+**Latest Stable:** `0.35.0` (November 2, 2026)
+
 ### What's New in 0.34.0
 
 - **A redesigned access-control panel.** A who-can-access builder, a plain-language summary, a home-page tile control and slimmer exclusive lists. Role labels, the account ID check and the all-internal-users label come from `siteFeatures.siteAdmin.accessControl`.
@@ -23,8 +41,6 @@ Stay up to date with the latest Pika Framework releases, new features, and impor
 - The Strands converse Lambda now honors `accountIdFieldNames`.
 - With `chatAdminApiAuth: 'NONE'` (the default), every chat-admin API caller is trusted, including the `roles` and `userId` it sends. Set `'IAM'` in production.
 - No `pika-app` upgrade is needed.
-
-**Latest Stable:** `0.34.0` (October 22, 2026)
 
 ### What's New in 0.33.1
 
@@ -788,6 +804,7 @@ When breaking changes are introduced:
 
 | Version | Date        | Type     | Summary                                       |
 | ------- | ----------- | -------- | --------------------------------------------- |
+| 0.35.0  | Nov 2 2026  | Minor    | Claude Sonnet 5.5 is the TypeScript converse default, Sonnet 4 and 4.5 inference profiles no longer created, Claude 5.x supervisor and chat UI fixes |
 | 0.34.0  | Oct 22 2026 | Minor    | Redesigned access-control panel, additive external grant, session roles in by-rules, six new `lib/custom` hooks, local development tools |
 | 0.33.1  | Oct 19 2026 | Patch    | Cookie-encryption key rotation keeps the current key across the 100→1 version wrap, which had broken every login; broken stages recover on redeploy |
 | 0.33.0  | Oct 19 2026 | Minor    | Session insights fixed on Sonnet 4.6, session-quality hooks, thumbs-down queuing, start floor, access-log and IAM props, fail-closed Strands trace gate |

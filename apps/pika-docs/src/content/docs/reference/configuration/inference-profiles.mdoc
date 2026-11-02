@@ -31,7 +31,7 @@ Inference profile names follow this pattern:
 **`profileName`**
 - Human-readable model identifier
 - Currently hardcoded by Pika (user configuration in future release)
-- Examples: `claude-sonnet-4`, `claude-haiku-4-5`, `claude-sonnet-4-5`
+- Examples: `claude-sonnet-4-6`, `claude-haiku-4-5`, `claude-sonnet-5-5`
 
 ### Example Names
 
@@ -49,9 +49,10 @@ export const pikaConfig: PikaConfig = {
 
 When deployed with `STAGE=test`, the inference profiles will be named:
 
-- `pika-test-claude-sonnet-4`
 - `pika-test-claude-haiku-4-5`
-- `pika-test-claude-sonnet-4-5`
+- `pika-test-claude-sonnet-4-6`
+- `pika-test-claude-sonnet-5`
+- `pika-test-claude-sonnet-5-5`
 
 ## Currently Created Profiles
 
@@ -59,9 +60,12 @@ Pika automatically creates inference profiles for these models:
 
 | Model | Profile Name | Base Model ID |
 |-------|--------------|---------------|
-| Claude 4 Sonnet | `claude-sonnet-4` | `us.anthropic.claude-sonnet-4-20250514-v1:0` |
 | Claude 4.5 Haiku | `claude-haiku-4-5` | `us.anthropic.claude-haiku-4-5-20251001-v1:0` |
-| Claude 4.5 Sonnet | `claude-sonnet-4-5` | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` |
+| Claude 4.6 Sonnet | `claude-sonnet-4-6` | `us.anthropic.claude-sonnet-4-6` |
+| Claude 5 Sonnet | `claude-sonnet-5` | `us.anthropic.claude-sonnet-5` |
+| Claude 5.5 Sonnet | `claude-sonnet-5-5` | `us.anthropic.claude-sonnet-5-5` |
+
+Profiles for Claude 4 Sonnet and Claude 4.5 Sonnet were created before 0.35.0 and may still exist in older accounts. Pika no longer creates them.
 
 {% aside type="tip" title="Future Configuration" %}
 In a future release, you'll be able to configure which models get inference profiles. Currently, Pika creates profiles for the models listed above.
@@ -93,7 +97,7 @@ export const pikaConfig: PikaConfig = {
 };
 ```
 
-The `pika-prod-claude-sonnet-4-5` inference profile will be tagged with:
+The `pika-prod-claude-sonnet-5-5` inference profile will be tagged with:
 
 ```json
 {
@@ -101,7 +105,7 @@ The `pika-prod-claude-sonnet-4-5` inference profile will be tagged with:
     "CostCenter": "engineering",
     "Project": "CustomerPortal",
     "Team": "platform",
-    "component": "Claude4_5SonnetInferenceProfile"
+    "component": "Claude5_5SonnetInferenceProfile"
 }
 ```
 
@@ -128,9 +132,10 @@ export const pikaConfig: PikaConfig = {
 ```
 
 **Resulting inference profile names:**
-- `my-chatbot-production-claude-sonnet-4`
 - `my-chatbot-production-claude-haiku-4-5`
-- `my-chatbot-production-claude-sonnet-4-5`
+- `my-chatbot-production-claude-sonnet-4-6`
+- `my-chatbot-production-claude-sonnet-5`
+- `my-chatbot-production-claude-sonnet-5-5`
 
 ### Multi-Environment
 
@@ -152,14 +157,16 @@ export const pikaConfig: PikaConfig = {
 **When deployed to different stages:**
 
 Dev (`STAGE=dev`):
-- `customer-api-dev-claude-sonnet-4`
 - `customer-api-dev-claude-haiku-4-5`
-- `customer-api-dev-claude-sonnet-4-5`
+- `customer-api-dev-claude-sonnet-4-6`
+- `customer-api-dev-claude-sonnet-5`
+- `customer-api-dev-claude-sonnet-5-5`
 
 Production (`STAGE=prod`):
-- `customer-api-prod-claude-sonnet-4`
 - `customer-api-prod-claude-haiku-4-5`
-- `customer-api-prod-claude-sonnet-4-5`
+- `customer-api-prod-claude-sonnet-4-6`
+- `customer-api-prod-claude-sonnet-5`
+- `customer-api-prod-claude-sonnet-5-5`
 
 ## ARN Format
 
@@ -171,7 +178,7 @@ arn:aws:bedrock:{region}:{accountId}:application-inference-profile/{profileName}
 
 **Example:**
 ```
-arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/pika-test-claude-sonnet-4-5
+arn:aws:bedrock:us-east-1:123456789012:application-inference-profile/pika-test-claude-sonnet-5-5
 ```
 
 ## Determining Your Profile Names
@@ -184,16 +191,16 @@ To predict your inference profile names:
    - Example: `pika-test`, `customer-api-prod`
 
 2. **Add the profile name:**
-   - Use the hardcoded profile names: `claude-sonnet-4`, `claude-haiku-4-5`, or `claude-sonnet-4-5`
+   - Use the hardcoded profile names: `claude-haiku-4-5`, `claude-sonnet-4-6`, `claude-sonnet-5` or `claude-sonnet-5-5`
    - Join with a hyphen: `{stackName}-{profileName}`
 
 3. **Example calculation:**
    ```
    pika.projNameKebabCase = "my-api"
    STAGE = "prod"
-   profileName = "claude-sonnet-4-5"
+   profileName = "claude-sonnet-5-5"
    
-   Result: "my-api-prod-claude-sonnet-4-5"
+   Result: "my-api-prod-claude-sonnet-5-5"
    ```
 
 ## Use Cases
