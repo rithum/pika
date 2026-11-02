@@ -2,7 +2,7 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 
 const config = { isLocal: true, stage: 'test', mockAuth: 'true' as string | undefined };
 
-jest.mock('$lib/server/config', () => ({
+jest.unstable_mockModule('$lib/server/config', () => ({
     appConfig: {
         get isLocal() {
             return config.isLocal;
@@ -14,20 +14,21 @@ jest.mock('$lib/server/config', () => ({
         getArbitraryConfigValue: () => ''
     }
 }));
-jest.mock('$lib/custom/local-mock-auth-provider', () => ({
+jest.unstable_mockModule('$lib/custom/local-mock-auth-provider', () => ({
     __esModule: true,
     default: class LocalMockAuthProvider {
         readonly kind = 'local-mock';
     }
 }));
-jest.mock('../src/lib/server/auth/default-provider', () => ({
+jest.unstable_mockModule('../src/lib/server/auth/default-provider', () => ({
     __esModule: true,
     default: class DefaultAuthProvider {
         readonly kind = 'default';
     }
 }));
+jest.unstable_mockModule('../src/lib/server/auth-provider', () => ({ default: null }));
 
-import { loadAuthProvider } from '../src/lib/server/auth';
+const { loadAuthProvider } = await import('../src/lib/server/auth');
 
 const DEPLOY_KEYS = ['ECS_CONTAINER_METADATA_URI', 'ECS_CONTAINER_METADATA_URI_V4', 'AWS_EXECUTION_ENV', 'AWS_LAMBDA_FUNCTION_NAME'];
 

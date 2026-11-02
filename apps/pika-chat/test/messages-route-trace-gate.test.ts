@@ -3,24 +3,24 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 const getChatMessagesMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mayReceiveMock = jest.fn<(user: unknown, enabled: boolean) => boolean>();
 
-jest.mock('$lib/server/config', () => ({
+jest.unstable_mockModule('$lib/server/config', () => ({
     appConfig: { pikaS3Bucket: 'bucket', awsRegion: 'us-east-1', chatApiId: 'api', stage: 'test', jwtSecret: 'secret' }
 }));
-jest.mock('pika-shared/util/server-utils', () => ({
+jest.unstable_mockModule('pika-shared/util/server-utils', () => ({
     getOverridableFeatures: () => ({ traces: { enabled: true }, entity: { enabled: false } }),
     getEntityIdForUser: () => undefined
 }));
-jest.mock('$lib/server/chat-admin-apis', () => ({
+jest.unstable_mockModule('$lib/server/chat-admin-apis', () => ({
     getMatchingChatApps: async () => [{ chatAppId: 'app-1' }]
 }));
-jest.mock('$lib/server/chat-apis', () => ({
+jest.unstable_mockModule('$lib/server/chat-apis', () => ({
     getChatMessages: (...args: unknown[]) => getChatMessagesMock(...args)
 }));
-jest.mock('$lib/custom/trace-content-access', () => ({
+jest.unstable_mockModule('$lib/custom/trace-content-access', () => ({
     mayReceiveTraceContent: (user: unknown, enabled: boolean) => mayReceiveMock(user, enabled)
 }));
 
-import { GET } from '../src/routes/(auth)/api/message/[chatAppId]/[sessionId]/+server';
+const { GET } = await import('../src/routes/(auth)/api/message/[chatAppId]/[sessionId]/+server');
 
 const user = { userId: 'u1' };
 

@@ -7,17 +7,17 @@ const getPinnedSessionsMock = jest.fn<(...args: unknown[]) => Promise<Record<str
 const searchForSessionsMock = jest.fn<(search: unknown) => Promise<{ sessions?: unknown[]; total?: number }>>();
 const isContentAdminMock = jest.fn<(user: unknown) => boolean>();
 
-jest.mock('$lib/custom/session-account-context', () => ({
+jest.unstable_mockModule('$lib/custom/session-account-context', () => ({
     scopeSessionsToAccount: (...args: unknown[]) => scopeSessionsMock(...args),
     scopePinnedResultsToAccount: (...args: unknown[]) => scopePinnedMock(...args)
 }));
-jest.mock('$lib/server/chat-apis', () => ({
+jest.unstable_mockModule('$lib/server/chat-apis', () => ({
     getChatSessions: (userId: string, chatAppId: string) => getChatSessionsMock(userId, chatAppId),
     getPinnedSessions: (...args: unknown[]) => getPinnedSessionsMock(...args),
     getChatMessages: jest.fn(),
     searchForUser: jest.fn()
 }));
-jest.mock('$lib/server/utils', () => ({
+jest.unstable_mockModule('$lib/server/utils', () => ({
     handleApiGatewayError: (e: unknown) => {
         throw e;
     },
@@ -25,22 +25,44 @@ jest.mock('$lib/server/utils', () => ({
     isUserAllowedToUseEntityAccessControl: () => true,
     isUserAllowedToUseSpecificUserAccessControl: () => true
 }));
-jest.mock('$lib/server/chat-admin-apis', () => ({
-    searchForSessions: (search: unknown) => searchForSessionsMock(search)
+jest.unstable_mockModule('$lib/server/chat-admin-apis', () => ({
+    searchForSessions: (search: unknown) => searchForSessionsMock(search),
+    addChatSessionFeedback: jest.fn(),
+    clearSvelteKitCache: jest.fn(),
+    createOrUpdateChatAppOverride: jest.fn(),
+    createOrUpdateSemanticDirective: jest.fn(),
+    createOrUpdateTagDefinition: jest.fn(),
+    deleteChatAppOverride: jest.fn(),
+    deleteSemanticDirective: jest.fn(),
+    deleteTagDefinition: jest.fn(),
+    getAgent: jest.fn(),
+    getAllAgents: jest.fn(),
+    getAllChatApps: jest.fn(),
+    getAllTools: jest.fn(),
+    getChatApp: jest.fn(),
+    getInstructionAssistanceConfigFromSsm: jest.fn(),
+    getInstructionsAddedForUserMemory: jest.fn(),
+    getSessionAnalytics: jest.fn(),
+    getUserMemoriesForStrategy: jest.fn(),
+    getUsersForUserList: jest.fn(),
+    searchSemanticDirectives: jest.fn(),
+    searchTagDefinitions: jest.fn(),
+    updateChatSessionFeedback: jest.fn()
 }));
-jest.mock('$lib/server/custom-site-features', () => ({ siteFeatures: {} }));
-jest.mock('$lib/server/invoke-converse-fn-url', () => ({ invokeConverseFunctionUrl: jest.fn() }));
-jest.mock('$lib/custom/site-admin', () => ({ isUserAllowedAdminAccess: async () => true }));
-jest.mock('$lib/custom/trace-content-access', () => ({ mayReceiveTraceContent: () => true }));
-jest.mock('$lib/server/trace-content-guard', () => ({ withholdTraceContent: (m: unknown) => m }));
-jest.mock('../src/routes/(auth)/api/site-admin/custom-data', () => ({
+jest.unstable_mockModule('$lib/server/custom-site-features', () => ({ siteFeatures: {} }));
+jest.unstable_mockModule('$lib/server/invoke-converse-fn-url', () => ({ invokeConverseFunctionUrl: jest.fn() }));
+jest.unstable_mockModule('$lib/custom/site-admin', () => ({ isUserAllowedAdminAccess: async () => true }));
+jest.unstable_mockModule('$lib/custom/trace-content-access', () => ({ mayReceiveTraceContent: () => true }));
+jest.unstable_mockModule('$lib/server/trace-content-guard', () => ({ withholdTraceContent: (m: unknown) => m }));
+jest.unstable_mockModule('../src/routes/(auth)/api/site-admin/custom-data', () => ({
     getValuesForEntityAutoComplete: jest.fn(),
     getValuesForEntityList: jest.fn()
 }));
 
-import { GET } from '../src/routes/(auth)/api/session/[chatAppId]/+server';
-import { POST as pinnedSearch } from '../src/routes/(auth)/api/session/pinned/search/+server';
-import { POST as siteAdminPost } from '../src/routes/(auth)/api/site-admin/+server';
+const { GET } = await import('../src/routes/(auth)/api/session/[chatAppId]/+server');
+const { POST: pinnedSearch } = await import('../src/routes/(auth)/api/session/pinned/search/+server');
+const { POST: siteAdminPost } = await import('../src/routes/(auth)/api/site-admin/+server');
+
 
 const SESSIONS = [{ sessionId: 's1' }, { sessionId: 's2' }];
 

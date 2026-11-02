@@ -1,11 +1,11 @@
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import { DeleteParameterCommand, GetParametersByPathCommand, ParameterNotFound, PutParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 
-jest.mock('$lib/server/config', () => ({
+jest.unstable_mockModule('$lib/server/config', () => ({
     appConfig: { awsRegion: 'us-east-1' }
 }));
 
-import { deleteValueFromParameterStore, getParametersByPath, putValueToParameterStore } from '../../src/lib/server/ssm';
+const { deleteValueFromParameterStore, getParametersByPath, putValueToParameterStore } = await import('../../src/lib/server/ssm');
 
 const PARAM_NAME = '/test-app/example';
 

@@ -1,10 +1,10 @@
 /** Source-text guards for chat-app-main.svelte layout and scroll invariants that can't be mounted under jsdom. */
 import { describe, expect, it } from '@jest/globals';
 import { readFileSync } from 'fs';
-import { resolve } from 'path';
+import { dirname, resolve } from 'path';
 
 const source = readFileSync(
-    resolve(__dirname, '../src/lib/client/features/chat/chat-app-main/chat-app-main.svelte'),
+    resolve(dirname(expect.getState().testPath ?? ''), '../src/lib/client/features/chat/chat-app-main/chat-app-main.svelte'),
     'utf8'
 );
 

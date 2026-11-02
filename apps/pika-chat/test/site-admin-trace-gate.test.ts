@@ -3,28 +3,50 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 const getChatMessagesMock = jest.fn<(...args: unknown[]) => Promise<unknown>>();
 const mayReceiveMock = jest.fn<(user: unknown, enabled: boolean) => boolean>();
 
-jest.mock('$lib/server/config', () => ({
+jest.unstable_mockModule('$lib/server/config', () => ({
     appConfig: { pikaS3Bucket: 'bucket', awsRegion: 'us-east-1', chatApiId: 'api', stage: 'test', jwtSecret: 'secret' }
 }));
-jest.mock('pika-shared/util/server-utils', () => ({
+jest.unstable_mockModule('pika-shared/util/server-utils', () => ({
     getOverridableFeatures: () => ({ traces: { enabled: true }, entity: { enabled: false } }),
     getEntityIdForUser: () => undefined
 }));
-jest.mock('$lib/server/chat-admin-apis', () => ({
+jest.unstable_mockModule('$lib/server/chat-admin-apis', () => ({
+    addChatSessionFeedback: jest.fn(),
+    clearSvelteKitCache: jest.fn(),
+    createOrUpdateChatAppOverride: jest.fn(),
+    createOrUpdateSemanticDirective: jest.fn(),
+    createOrUpdateTagDefinition: jest.fn(),
+    deleteChatAppOverride: jest.fn(),
+    deleteSemanticDirective: jest.fn(),
+    deleteTagDefinition: jest.fn(),
+    getAgent: jest.fn(),
+    getAllAgents: jest.fn(),
+    getAllChatApps: jest.fn(),
+    getAllTools: jest.fn(),
+    getChatApp: jest.fn(),
+    getInstructionAssistanceConfigFromSsm: jest.fn(),
+    getInstructionsAddedForUserMemory: jest.fn(),
+    getSessionAnalytics: jest.fn(),
+    getUserMemoriesForStrategy: jest.fn(),
+    getUsersForUserList: jest.fn(),
+    searchForSessions: jest.fn(),
+    searchSemanticDirectives: jest.fn(),
+    searchTagDefinitions: jest.fn(),
+    updateChatSessionFeedback: jest.fn(),
     getMatchingChatApps: async () => [{ chatAppId: 'app-1' }]
 }));
-jest.mock('$lib/server/chat-apis', () => ({
+jest.unstable_mockModule('$lib/server/chat-apis', () => ({
     getChatMessages: (...args: unknown[]) => getChatMessagesMock(...args),
     searchForUser: jest.fn()
 }));
-jest.mock('$lib/custom/site-admin', () => ({
+jest.unstable_mockModule('$lib/custom/site-admin', () => ({
     isUserAllowedAdminAccess: async () => true
 }));
-jest.mock('$lib/custom/trace-content-access', () => ({
+jest.unstable_mockModule('$lib/custom/trace-content-access', () => ({
     mayReceiveTraceContent: (user: unknown, enabled: boolean) => mayReceiveMock(user, enabled)
 }));
 
-import { POST } from '../src/routes/(auth)/api/site-admin/+server';
+const { POST } = await import('../src/routes/(auth)/api/site-admin/+server');
 
 const user = { userId: 'admin-1' };
 

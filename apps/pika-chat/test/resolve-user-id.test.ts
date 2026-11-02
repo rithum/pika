@@ -6,15 +6,15 @@
  */
 import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
 import type { Cookies } from '@sveltejs/kit';
-import { resolveUserId } from '$lib/server/resolve-user-id';
+import type { resolveRequestUserId as ResolveRequestUserId } from '$lib/custom/request-user-id-resolver';
 
-jest.mock('$lib/custom/request-user-id-resolver', () => ({
-    resolveRequestUserId: jest.fn(),
+const mockResolver = jest.fn<typeof ResolveRequestUserId>();
+
+jest.unstable_mockModule('$lib/custom/request-user-id-resolver', () => ({
+    resolveRequestUserId: mockResolver,
 }));
 
-// Re-import the mocked function with proper typing for control inside tests.
-import { resolveRequestUserId } from '$lib/custom/request-user-id-resolver';
-const mockResolver = resolveRequestUserId as jest.MockedFunction<typeof resolveRequestUserId>;
+const { resolveUserId } = await import('$lib/server/resolve-user-id');
 
 function makeCtx() {
     return {
