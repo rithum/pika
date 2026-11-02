@@ -21,6 +21,7 @@ const ddbClient = new DynamoDBClient({ region: process.env.AWS_REGION });
 
 const CHAT_TAG = 'chat';
 const CONFIRMED_TAG = 'confirmed';
+const TRACE_HYDRATION_CONCURRENCY = 8;
 
 /**
  * This lambda function is used to handle the changes to the chat message table.
@@ -44,7 +45,62 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
     }
 
     const promptCache = new Map<string, Promise<string>>();
-    for (const record of event.Records) {
+
+    const inserts = new Map<number, { newItem: ChatMessage; newItemSnakeCase: any }>();
+    const eligible: number[] = [];
+    event.Records.forEach((record, i) => {
+        if (record.eventName === 'INSERT' && record.dynamodb?.NewImage) {
+            const newItemSnakeCase = unmarshall(record.dynamodb.NewImage as any);
+            const newItem = convertChatMessageToCamelFromSnakeCase(newItemSnakeCase as ChatMessageOs);
+            inserts.set(i, { newItem, newItemSnakeCase });
+            if (newItem.source === 'assistant' && !shouldSkipReplication(newItem.invocationMode)) {
+                eligible.push(i);
+            }
+        }
+    });
+
+    // The catch is attached at creation so a rejection can never sit unhandled while an earlier
+    // record's OpenSearch write is still pending.
+    const hydrations = new Map<number, Promise<Trace[] | undefined>>();
+    let nextEligible = 0;
+    const startHydration = (i: number) => {
+        const { newItem, newItemSnakeCase } = inserts.get(i)!;
+        const rawTracesS3 = newItemSnakeCase.traces_s3;
+        hydrations.set(
+            i,
+            getTracesForMessage(
+                {
+                    traces: newItemSnakeCase.traces,
+                    tracesS3: rawTracesS3?.s3_key
+                        ? {
+                              s3Key: rawTracesS3.s3_key,
+                              traceCount: rawTracesS3.trace_count ?? 0,
+                              compressedSize: rawTracesS3.compressed_size ?? 0
+                          }
+                        : undefined,
+                    userId: newItem.userId,
+                    sessionId: newItem.sessionId
+                },
+                promptCache
+            ).catch((error) => {
+                console.warn(
+                    `Failed to hydrate traces for message ${newItem.messageId}; indexing without traces/llm_instructions:`,
+                    error instanceof Error ? error.message : error
+                );
+                return undefined;
+            })
+        );
+    };
+    const startNextHydration = () => {
+        if (nextEligible < eligible.length) {
+            startHydration(eligible[nextEligible++]);
+        }
+    };
+    for (let n = 0; n < TRACE_HYDRATION_CONCURRENCY; n++) {
+        startNextHydration();
+    }
+
+    for (const [i, record] of event.Records.entries()) {
         console.log(`Event ID: ${record.eventID}`);
         console.log(`Event Name: ${record.eventName}`); // INSERT, MODIFY, REMOVE
         console.log('DynamoDB Record: ', JSON.stringify(record.dynamodb, null, 2));
@@ -53,36 +109,17 @@ export async function handler(event: DynamoDBStreamEvent, _context: Context) {
         switch (record.eventName) {
             case 'INSERT':
                 if (record.dynamodb?.NewImage) {
-                    // Unmarshall the DynamoDB NewImage (returns snake_case) and convert to camelCase
-                    const newItemSnakeCase = unmarshall(record.dynamodb.NewImage as any);
-                    const newItem = convertChatMessageToCamelFromSnakeCase(newItemSnakeCase as ChatMessageOs);
+                    const { newItem } = inserts.get(i)!;
 
-                    // convertChatMessageToCamelFromSnakeCase drops trace fields, so rehydrate them from
-                    // the raw image before indexing. Hydration failures index without traces and never
-                    // throw: the handler loop has no per-record catch, so a throw would wedge the shard.
-                    if (newItem.source === 'assistant' && !shouldSkipReplication(newItem.invocationMode)) {
-                        try {
-                            const rawTracesS3 = (newItemSnakeCase as any).traces_s3;
-                            newItem.traces = await getTracesForMessage(
-                                {
-                                    traces: (newItemSnakeCase as any).traces,
-                                    tracesS3: rawTracesS3?.s3_key
-                                        ? {
-                                              s3Key: rawTracesS3.s3_key,
-                                              traceCount: rawTracesS3.trace_count ?? 0,
-                                              compressedSize: rawTracesS3.compressed_size ?? 0
-                                          }
-                                        : undefined,
-                                    userId: newItem.userId,
-                                    sessionId: newItem.sessionId
-                                },
-                                promptCache
-                            );
-                        } catch (error) {
-                            console.warn(
-                                `Failed to hydrate traces for message ${newItem.messageId}; indexing without traces/llm_instructions:`,
-                                error instanceof Error ? error.message : error
-                            );
+                    // convertChatMessageToCamelFromSnakeCase drops trace fields, so they are rehydrated
+                    // before indexing. Hydration failures index without traces and never throw: the
+                    // handler loop has no per-record catch, so a throw would wedge the shard.
+                    if (hydrations.has(i)) {
+                        const traces = await hydrations.get(i);
+                        hydrations.delete(i);
+                        startNextHydration();
+                        if (traces !== undefined) {
+                            newItem.traces = traces;
                         }
                     }
 
