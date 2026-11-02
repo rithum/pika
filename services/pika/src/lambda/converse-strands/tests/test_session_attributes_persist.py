@@ -354,6 +354,33 @@ class TestEnsureSessionPersistsAttributes:
         assert mock_table.get_item.call_count == 3
         assert mock_table.get_item.call_args_list[2].kwargs['ConsistentRead'] is True
 
+    @pytest.mark.parametrize('blank', ['', None])
+    def test_blank_stored_account_id_is_replaced_with_guard(self, blank):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table(
+            {'user_id': 'u1', 'session_id': 's1', 'session_attributes': {'accountId': blank}})
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'A1'})
+
+        nested = mock_table.update_item.call_args.kwargs
+        assert nested['ExpressionAttributeValues'][':v0'] == 'A1'
+        assert nested['ExpressionAttributeNames']['#k0'] == 'accountId'
+        assert '(attribute_not_exists(#sa.#k0) OR #sa.#k0 = :blank0)' in nested['ConditionExpression']
+        assert nested['ExpressionAttributeValues'][':blank0'] == blank
+        assert result['session_attributes']['accountId'] == 'A1'
+
+    def test_present_stored_account_id_is_untouched(self):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table(
+            {'user_id': 'u1', 'session_id': 's1', 'session_attributes': {'accountId': 'keep'}})
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'A1'})
+
+        mock_table.update_item.assert_not_called()
+        assert result['session_attributes']['accountId'] == 'keep'
+
     def test_seed_skipped_when_session_attributes_is_a_map(self):
         from chat_ddb import ensure_session
         mock_ddb, mock_table = self._existing_session_table(

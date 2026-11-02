@@ -285,7 +285,7 @@ class TestHandlerErrorHandling:
 
             assert result['statusCode'] == 500
             body = json.loads(result['body'])
-            assert body['error'] == GENERIC_ERROR_MESSAGE
+            assert body['error'].startswith(GENERIC_ERROR_MESSAGE)
             assert 'test-agent-001' not in result['body']
 
     def test_raw_exception_text_not_exposed(self, valid_event, fake_context):
@@ -300,4 +300,16 @@ class TestHandlerErrorHandling:
 
             assert result['statusCode'] == 500
             assert secret not in result['body']
-            assert GENERIC_ERROR_MESSAGE in result['body']
+            assert json.loads(result['body'])['error'] == GENERIC_ERROR_MESSAGE
+
+    def test_error_carries_request_id_reference(self, valid_event, fake_context):
+        fake_context.aws_request_id = 'req-abc-123'
+        with patch('handler.dynamodb') as mock_ddb, \
+             patch('handler.Agent'), \
+             patch('handler.load_agent', side_effect=RuntimeError('boom')):
+            mock_ddb.Table.return_value = MagicMock()
+
+            from handler import handler, GENERIC_ERROR_MESSAGE
+            result = handler(valid_event, fake_context)
+
+            assert json.loads(result['body'])['error'] == f'{GENERIC_ERROR_MESSAGE} (ref req-abc-123)'

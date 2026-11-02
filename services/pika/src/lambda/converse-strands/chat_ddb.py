@@ -150,16 +150,18 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
         if _retried and pins_request and not _has_account_context(existing) and any(k in existing_attrs for k in family_keys):
             raise ValueError('session has partial account context')
 
+        blank_ids = {k for k in id_fields if k in existing_attrs and not _present_account_value(existing_attrs[k])}
         backfill = {}
         if session_attributes and not _has_account_context(existing):
             backfill.update({
                 k: session_attributes[k]
                 for k in family_keys
-                if k not in existing_attrs
+                if (k not in existing_attrs or k in blank_ids)
                 and (_present_account_value(session_attributes.get(k)) if k in id_fields
                      else session_attributes.get(k) is not None)
             })
         pins_account = bool(backfill)
+        blank_backfilled = blank_ids.intersection(backfill)
         if session_identity and not _has_session_identity(existing):
             backfill.update({k: v for k, v in session_identity.items() if v is not None and k not in existing_attrs})
         if backfill:
@@ -174,14 +176,19 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
             guards = ['attribute_exists(session_id)']
             alias_index = 0
             for field in dict.fromkeys(_account_id_field_names()):
-                if field in existing_attrs:
+                if field in existing_attrs and field not in blank_backfilled:
                     continue
                 placeholder = backfill_placeholders.get(field)
                 if placeholder is None:
                     placeholder = f'#a{alias_index}'
                     alias_index += 1
                     names[placeholder] = field
-                guards.append(f'attribute_not_exists(#sa.{placeholder})')
+                if field in blank_backfilled:
+                    blank_value = f':blank{placeholder[2:]}'
+                    values[blank_value] = existing_attrs[field]
+                    guards.append(f'(attribute_not_exists(#sa.{placeholder}) OR #sa.{placeholder} = {blank_value})')
+                else:
+                    guards.append(f'attribute_not_exists(#sa.{placeholder})')
             if pins_account:
                 for field in _ACCOUNT_NON_ID_FIELDS:
                     if field in existing_attrs:

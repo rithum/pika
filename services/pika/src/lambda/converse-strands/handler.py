@@ -2386,10 +2386,13 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
 
     except Exception as e:
         logger.error(f"Handler error: {e}", exc_info=True)
-        stream.write(json.dumps({'error': GENERIC_ERROR_MESSAGE}))
+        request_id = getattr(context, 'aws_request_id', None)
+        error_message = (f'{GENERIC_ERROR_MESSAGE} (ref {request_id})'
+                         if isinstance(request_id, str) and request_id else GENERIC_ERROR_MESSAGE)
+        stream.write(json.dumps({'error': error_message}))
         stream.end()
         if _owns_queue:
-            return _error_response(500, GENERIC_ERROR_MESSAGE)
+            return _error_response(500, error_message)
     finally:
         # Close any MCP client sessions opened by this invocation. MCPClient
         # runs a background thread + open HTTP session that stays alive for
