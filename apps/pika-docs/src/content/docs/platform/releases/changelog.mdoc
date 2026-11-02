@@ -28,7 +28,7 @@ Complete version history of the Pika Framework.
 
 - **Supervisor agents on Claude 5.x no longer show the raw model response as JSON.** The agent post-processor read only the first content block, which is a reasoning block on 5.x.
 - **Aligned markdown tables keep their alignment in chat and trace views.** The sanitizer keeps `style` on `th` and `td` only when it is exactly `text-align: left|center|right`. Every other `style` is still removed.
-- **`allowedCustomAttrs` now limits attributes on lifted built-in tags** (such as `img`), not just on custom elements. A lifted tag with no entry keeps DOMPurify's defaults, as before.
+- **`allowedCustomAttrs` now limits attributes on lifted built-in tags** (such as `img`), not just on custom elements. A lifted tag with an entry keeps only the listed attributes, plus the lifted `srcset` or `poster`; DOMPurify defaults such as `class`, `aria-*` and `data-*` are removed unless listed. A lifted tag with no entry keeps DOMPurify's defaults, as before.
 - **Expanded Answer Reasoning reloads after a session refresh** instead of showing "No reasoning was recorded for this answer."
 - **Scrolling up during a streamed answer stops auto-follow for any input:** touch, scrollbar drag, keyboard, or a wheel move shorter than 40px. Wheeling or swiping inside a scrollable code block or table no longer stops auto-follow.
 - **The window-level file-drop guard no longer blocks drops into native file inputs**, and shows a no-drop cursor when file upload is disabled.
@@ -38,7 +38,7 @@ Complete version history of the Pika Framework.
   - an empty `accountId` is never written, and a stored blank account ID no longer blocks a later real pin;
   - a session where a concurrent writer stored account fields without an account ID fails the turn instead of mixing accounts;
   - losing the session-create race retries once before failing.
-- **Strands usage now counts swarm cache tokens** when the agent result reports none.
+- **Strands usage now counts swarm cache tokens.** Cache read and write tokens are the larger of the agent result's total and the sum of the swarm's per-node totals.
 - **Local Strands development loads the Sonnet 4.6, 5 and 5.5 inference profiles.**
 
 ## [0.34.0] - 2026-10-22

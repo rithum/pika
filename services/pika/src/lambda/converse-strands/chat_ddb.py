@@ -147,10 +147,11 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
             _present_account_value(session_attributes.get(k)) for k in id_fields
         )
         family_keys = (*id_fields, *_ACCOUNT_NON_ID_FIELDS)
-        if _retried and pins_request and not _has_account_context(existing) and any(k in existing_attrs for k in family_keys):
+        blank_ids = {k for k in id_fields if k in existing_attrs and not _present_account_value(existing_attrs[k])}
+        if (_retried and pins_request and not _has_account_context(existing)
+                and any(k in existing_attrs and k not in blank_ids for k in family_keys)):
             raise ValueError('session has partial account context')
 
-        blank_ids = {k for k in id_fields if k in existing_attrs and not _present_account_value(existing_attrs[k])}
         backfill = {}
         if session_attributes and not _has_account_context(existing):
             backfill.update({

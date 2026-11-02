@@ -216,7 +216,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
 
         const modifiedSegments: ProcessedSegment[] = [];
 
-        const messageEnd = (segments.length === 0 ? 0 : (this.#fedLength.get(segments) ?? 0)) + content.length;
+        const messageEnd = (this.#fedLength.get(segments) ?? 0) + content.length;
         this.#fedLength.set(segments, messageEnd);
 
         // Mark any existing streaming segments as modified so they get their status updated
@@ -539,6 +539,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                 }
             }
             segments.splice(0, segments.length);
+            this.#fedLength.delete(segments);
             this.parseMessage(fullMessage, segments, false);
             const reparsedMetadata = segments.filter((seg): seg is MetadataTagSegment => 'isMetadata' in seg && seg.isMetadata);
             const unmatched: MetadataTagSegment[] = [];

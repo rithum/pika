@@ -317,6 +317,19 @@ class TestEnsureSessionPersistsAttributes:
 
         assert mock_table.update_item.call_count == 1
 
+    def test_blank_stored_account_id_on_reread_is_replaced_not_partial(self):
+        from chat_ddb import ensure_session
+        mock_ddb, mock_table = self._existing_session_table({})
+        stored = {'user_id': 'u1', 'session_id': 's1', 'session_attributes': {'accountId': ''}}
+        mock_table.get_item.side_effect = [{'Item': dict(stored)}, {'Item': dict(stored)}]
+        mock_table.update_item.side_effect = [self._client_error('ConditionalCheckFailedException'), {}]
+
+        result = ensure_session(mock_ddb, 'table', 'u1', 's1', 'a1', 'app1',
+                                session_attributes={'accountId': 'acct-9'})
+
+        assert mock_table.update_item.call_count == 2
+        assert result['session_attributes']['accountId'] == 'acct-9'
+
     def test_legacy_partial_session_backfills_on_first_pass(self):
         from chat_ddb import ensure_session
         mock_ddb, mock_table = self._existing_session_table(

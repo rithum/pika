@@ -180,7 +180,7 @@
             if (!touch) return;
             const dx = touch.clientX - touchStartX;
             const dy = touch.clientY - touchStartY;
-            if (Math.abs(dy) > Math.abs(dx) && dy > 0 && !isInsideScrollableAncestor(event.target, el, -dy)) {
+            if (Math.abs(dy) > Math.abs(dx) && dy > 0 && el.scrollTop > 0 && !isInsideScrollableAncestor(event.target, el, -dy)) {
                 stickToBottom = false;
             }
         };
