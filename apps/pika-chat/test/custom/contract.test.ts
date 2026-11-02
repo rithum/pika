@@ -11,7 +11,8 @@
  */
 import { describe, it, expect } from '@jest/globals';
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type {
     AuthenticatedUser,
     ChatMessageForRendering,
@@ -50,6 +51,8 @@ import type { NavItem } from '../../src/lib/client/app/types';
 import { shouldRenderMessage } from '../../src/lib/custom/message-visibility';
 import { allowedCustomTags, allowedCustomAttrs } from '../../src/lib/custom/chat-html-allowed-tags';
 import { mayReceiveTraceContent } from '../../src/lib/custom/trace-content-access';
+
+const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 
 // Type signatures verified at compile time
 type C1Sig = (user: AuthenticatedUser<RecordOrUndef, RecordOrUndef>) => Promise<boolean>;
@@ -164,7 +167,7 @@ describe('lib/custom hook defaults', () => {
             // Promise.all in chat-app.state.svelte.ts#loadAdditionalSessions would break the
             // public sibling-isolation contract; this assertion fails fast in that case.
             const stateSrc = readFileSync(
-                join(__dirname, '../../src/lib/client/features/chat/chat-app.state.svelte.ts'),
+                join(TEST_DIR, '../../src/lib/client/features/chat/chat-app.state.svelte.ts'),
                 'utf8'
             );
             // Find the loadAdditionalSessions method body and assert it uses allSettled, not bare .all.
@@ -271,18 +274,18 @@ describe('lib/custom hook defaults', () => {
         });
 
         it('is invoked transitively via $lib/server/resolve-user-id from api/message/+server.ts', () => {
-            const routeSrc = readFileSync(join(__dirname, '../../src/routes/(auth)/api/message/+server.ts'), 'utf-8');
+            const routeSrc = readFileSync(join(TEST_DIR, '../../src/routes/(auth)/api/message/+server.ts'), 'utf-8');
             expect(routeSrc).toContain('resolveUserId');
             expect(routeSrc).toContain('$lib/server/resolve-user-id');
             // The helper at $lib/server/resolve-user-id.ts wraps the consumer hook resolveRequestUserId.
-            const helperSrc = readFileSync(join(__dirname, '../../src/lib/server/resolve-user-id.ts'), 'utf-8');
+            const helperSrc = readFileSync(join(TEST_DIR, '../../src/lib/server/resolve-user-id.ts'), 'utf-8');
             expect(helperSrc).toContain('resolveRequestUserId');
             expect(helperSrc).toContain('$lib/custom/request-user-id-resolver');
         });
 
         it('is invoked transitively via $lib/server/resolve-user-id from api/message/[chatAppId]/[sessionId]/+server.ts', () => {
             const routeSrc = readFileSync(
-                join(__dirname, '../../src/routes/(auth)/api/message/[chatAppId]/[sessionId]/+server.ts'),
+                join(TEST_DIR, '../../src/routes/(auth)/api/message/[chatAppId]/[sessionId]/+server.ts'),
                 'utf-8'
             );
             expect(routeSrc).toContain('resolveUserId');
@@ -399,7 +402,7 @@ describe('lib/custom hook defaults', () => {
 
         it('the admin nav spreads it after the built-in items: text smoke test', () => {
             const navSrc = readFileSync(
-                join(__dirname, '../../src/lib/client/features/site-admin/nav/site-admin-nav.state.svelte.ts'),
+                join(TEST_DIR, '../../src/lib/client/features/site-admin/nav/site-admin-nav.state.svelte.ts'),
                 'utf8'
             );
             expect(navSrc).toContain("import { customAdminPages } from '$lib/custom/admin/site-admin-extensions';");
@@ -422,7 +425,7 @@ describe('lib/custom hook defaults', () => {
 
         it('chat-app-main renders the filtered list and keeps the started-check on the full list: text smoke test', () => {
             const mainSrc = readFileSync(
-                join(__dirname, '../../src/lib/client/features/chat/chat-app-main/chat-app-main.svelte'),
+                join(TEST_DIR, '../../src/lib/client/features/chat/chat-app-main/chat-app-main.svelte'),
                 'utf-8'
             );
             expect(mainSrc).toContain('filter((m) => shouldRenderMessage(m))');
@@ -441,12 +444,12 @@ describe('lib/custom hook defaults', () => {
 
         it('text-renderer and trace route their HTML sinks through the framework sanitizer: text smoke test', () => {
             const textRendererSrc = readFileSync(
-                join(__dirname, '../../src/lib/client/features/chat/message-segments/default-components/text-renderer.svelte'),
+                join(TEST_DIR, '../../src/lib/client/features/chat/message-segments/default-components/text-renderer.svelte'),
                 'utf-8'
             );
             expect(textRendererSrc).toContain('container.innerHTML = sanitizeChatHtml(htmlContent)');
             const traceSrc = readFileSync(
-                join(__dirname, '../../src/lib/client/features/chat/chat-app-main/trace.svelte'),
+                join(TEST_DIR, '../../src/lib/client/features/chat/chat-app-main/trace.svelte'),
                 'utf-8'
             );
             expect(traceSrc).toContain('{@html sanitizeChatHtml(trace.markdown)}');
@@ -462,7 +465,7 @@ describe('lib/custom hook defaults', () => {
         });
 
         it('route, stream and IAM enforcement are wired: text smoke test', () => {
-            const read = (rel: string) => readFileSync(join(__dirname, '../..', rel), 'utf-8');
+            const read = (rel: string) => readFileSync(join(TEST_DIR, '../..', rel), 'utf-8');
             const api = 'src/routes/(auth)/api';
             for (const rel of [
                 `${api}/trace/[chatAppId]/[sessionId]/[messageId]/+server.ts`,

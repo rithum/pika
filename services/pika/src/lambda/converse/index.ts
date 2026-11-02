@@ -55,7 +55,7 @@ import {
 } from '../../lib/intent-router';
 import { addChatMessage, ensureChatSession, getChatMessages, getUser } from '../../lib/chat-apis';
 import { updateSessionSentContexts } from '../../lib/chat-ddb';
-import { filterLLMContextItems, getAdditionalUserPromptInstructions } from '../../lib/instruction-augmentation';
+import { contextItemId, filterLLMContextItems, getAdditionalUserPromptInstructions } from '../../lib/instruction-augmentation';
 import { getMemoryInstructions } from '../../lib/memory';
 import { getParametersByPath, getValueFromParameterStore } from '../../lib/ssm';
 import { getEffectiveChatAppId, getMemoryId } from '../../lib/utils';
@@ -755,6 +755,7 @@ async function converse(
     let contextStr = '';
     let filteredContexts: LLMContextItem[] = [];
     if (llmContextItems && llmContextItems.length > 0) {
+        llmContextItems = llmContextItems.map((c, i) => ({ ...c, id: contextItemId(c, i + 1) }));
         console.log('Processing', llmContextItems.length, 'LLM context items');
 
         try {

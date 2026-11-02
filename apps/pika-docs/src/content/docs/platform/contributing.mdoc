@@ -238,6 +238,8 @@ pnpm test:coverage
 pnpm test:watch
 ```
 
+The pika-chat app runs jest as native ESM (`--experimental-vm-modules`). Tests mock modules with `jest.unstable_mockModule` followed by `await import(...)`, and use `import.meta.url` instead of `__dirname`. An ESM mock factory must export every name the importer uses.
+
 ### Test Guidelines
 
 - Write tests for all new functionality

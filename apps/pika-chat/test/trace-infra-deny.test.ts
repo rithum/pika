@@ -1,8 +1,8 @@
 import { describe, it, expect } from '@jest/globals';
 import { readFileSync } from 'fs';
-import { join } from 'path';
+import { dirname, join } from 'path';
 
-const source = readFileSync(join(__dirname, '../infra/lib/stacks/pika-chat-construct.ts'), 'utf-8').replace(/\s+/g, ' ');
+const source = readFileSync(join(dirname(expect.getState().testPath ?? ''), '../infra/lib/stacks/pika-chat-construct.ts'), 'utf-8').replace(/\s+/g, ' ');
 const statements = source.split('new iam.PolicyStatement(').slice(1);
 
 describe('pika-chat role trace isolation (source-text check, not synthesized)', () => {

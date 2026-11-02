@@ -54,7 +54,7 @@ Inference profiles follow this pattern:
 
 Where:
 - **stackName** = Your `pika.projNameKebabCase` + stage (e.g., `pika-test`, `customer-api-prod`)
-- **profileName** = Model identifier (e.g., `claude-sonnet-4-5`, `claude-haiku-4-5`)
+- **profileName** = Model identifier (e.g., `claude-sonnet-5-5`, `claude-haiku-4-5`)
 
 ### Find Your Stack Name
 
@@ -75,18 +75,22 @@ Add your deployment stage:
 
 ### Current Profile Names
 
-Pika creates three inference profiles per deployment:
+Pika creates four inference profiles per deployment:
 
 | Model | Profile Name Suffix |
 |-------|-------------------|
-| Claude 4 Sonnet | `claude-sonnet-4` |
 | Claude 4.5 Haiku | `claude-haiku-4-5` |
-| Claude 4.5 Sonnet | `claude-sonnet-4-5` |
+| Claude 4.6 Sonnet | `claude-sonnet-4-6` |
+| Claude 5 Sonnet | `claude-sonnet-5` |
+| Claude 5.5 Sonnet | `claude-sonnet-5-5` |
+
+Profiles for Claude 4 Sonnet and Claude 4.5 Sonnet were created before 0.35.0 and may still exist in older accounts. Pika no longer creates them.
 
 **Example for `STAGE=test`:**
-- `pika-test-claude-sonnet-4`
 - `pika-test-claude-haiku-4-5`
-- `pika-test-claude-sonnet-4-5`
+- `pika-test-claude-sonnet-4-6`
+- `pika-test-claude-sonnet-5`
+- `pika-test-claude-sonnet-5-5`
 
 {% aside type="tip" title="Complete Reference" %}
 See [Inference Profile Names](/reference/configuration/inference-profiles/) for complete naming details and examples.
@@ -114,7 +118,7 @@ See [Inference Profile Names](/reference/configuration/inference-profiles/) for 
 2. **Group by Usage Type:**
    - Click **Group by** → **Usage Type**
    - Look for entries containing your inference profile names
-   - Example: `USE2-Inference:pika-test-claude-sonnet-4-5`
+   - Example: `USE2-Inference:pika-test-claude-sonnet-5-5`
 
 3. **Identify Your Costs:**
    - Usage types will include your inference profile names
@@ -165,14 +169,14 @@ For a project with stack name `customer-api-prod`:
 
 | Usage Type | Monthly Cost | Percentage |
 |-----------|-------------|-----------|
-| `Inference:customer-api-prod-claude-sonnet-4-5` | $450.23 | 65% |
+| `Inference:customer-api-prod-claude-sonnet-5-5` | $450.23 | 65% |
 | `Inference:customer-api-prod-claude-haiku-4-5` | $180.15 | 26% |
-| `Inference:customer-api-prod-claude-sonnet-4` | $62.08 | 9% |
+| `Inference:customer-api-prod-claude-sonnet-4-6` | $62.08 | 9% |
 
 **Insights:**
-- Claude 4.5 Sonnet accounts for 65% of AI costs
+- Claude 5.5 Sonnet accounts for 65% of AI costs
 - Consider using Claude 4.5 Haiku for simpler queries
-- Claude 4 Sonnet has minimal usage
+- Claude 4.6 Sonnet has minimal usage
 
 ## Step 5: Compare Costs Across Environments
 

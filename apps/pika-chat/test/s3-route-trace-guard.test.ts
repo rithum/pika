@@ -2,7 +2,7 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
 const sendMock = jest.fn<(command: unknown) => Promise<unknown>>();
 
-jest.mock('@aws-sdk/client-s3', () => ({
+jest.unstable_mockModule('@aws-sdk/client-s3', () => ({
     S3Client: class {
         send(command: unknown) {
             return sendMock(command);
@@ -15,17 +15,17 @@ jest.mock('@aws-sdk/client-s3', () => ({
         constructor(public input: unknown) {}
     }
 }));
-jest.mock('$lib/server/config', () => ({
+jest.unstable_mockModule('$lib/server/config', () => ({
     appConfig: { pikaS3Bucket: 'bucket', awsRegion: 'us-east-1', chatApiId: 'api', stage: 'test', jwtSecret: 'secret' }
 }));
-jest.mock('pika-shared/util/server-utils', () => ({
+jest.unstable_mockModule('pika-shared/util/server-utils', () => ({
     getOverridableFeatures: () => ({ traces: { enabled: true }, entity: { enabled: false } }),
     getEntityIdForUser: () => undefined
 }));
 
-import { GET as downloadGet } from '../src/routes/(auth)/api/download/[s3Key]/+server';
-import { GET as contentGet } from '../src/routes/(auth)/api/s3-file-content/[s3Key]/+server';
-import { POST as filePost } from '../src/routes/(auth)/api/message/file/+server';
+const { GET: downloadGet } = await import('../src/routes/(auth)/api/download/[s3Key]/+server');
+const { GET: contentGet } = await import('../src/routes/(auth)/api/s3-file-content/[s3Key]/+server');
+const { POST: filePost } = await import('../src/routes/(auth)/api/message/file/+server');
 
 const locals = { user: { userId: 'u1' } };
 

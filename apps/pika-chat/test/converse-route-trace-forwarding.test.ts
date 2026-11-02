@@ -10,30 +10,30 @@ const INVOCATION_FRAME = `<trace>${JSON.stringify({
 })}</trace>`;
 const UPSTREAM_BODY = `hi${INVOCATION_FRAME}`;
 
-jest.mock('$lib/server/config', () => ({
+jest.unstable_mockModule('$lib/server/config', () => ({
     appConfig: { pikaS3Bucket: 'bucket', awsRegion: 'us-east-1', chatApiId: 'api', stage: 'test', jwtSecret: 'secret' }
 }));
-jest.mock('pika-shared/util/server-utils', () => ({
+jest.unstable_mockModule('pika-shared/util/server-utils', () => ({
     getOverridableFeatures: () => ({ traces: { enabled: true }, entity: { enabled: false }, fileUpload: { enabled: true } }),
     getEntityIdForUser: () => undefined
 }));
-jest.mock('$lib/server/chat-admin-apis', () => ({
+jest.unstable_mockModule('$lib/server/chat-admin-apis', () => ({
     getMatchingChatApps: async () => [{ chatAppId: 'app-1' }]
 }));
-jest.mock('$lib/custom/server-hooks', () => ({
+jest.unstable_mockModule('$lib/custom/server-hooks', () => ({
     transformCustomUserData: async (data: unknown) => data
 }));
-jest.mock('$lib/server/resolve-user-id', () => ({
+jest.unstable_mockModule('$lib/server/resolve-user-id', () => ({
     resolveUserId: async () => 'u1'
 }));
-jest.mock('$lib/custom/trace-content-access', () => ({
+jest.unstable_mockModule('$lib/custom/trace-content-access', () => ({
     mayReceiveTraceContent: (user: unknown, enabled: boolean) => mayReceiveMock(user, enabled)
 }));
-jest.mock('$lib/server/invoke-converse-fn-url', () => ({
+jest.unstable_mockModule('$lib/server/invoke-converse-fn-url', () => ({
     invokeConverseFunctionUrl: (params: { features?: Record<string, unknown> }) => invokeMock(params)
 }));
 
-import { POST } from '../src/routes/(auth)/api/message/+server';
+const { POST } = await import('../src/routes/(auth)/api/message/+server');
 
 function event() {
     return {

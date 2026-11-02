@@ -1,10 +1,14 @@
 import { describe, expect, it } from '@jest/globals';
+import { JSDOM } from 'jsdom';
 import {
     STICKY_BOTTOM_THRESHOLD_PX,
     createScrollTracker,
+    isFileInput,
+    isInsideScrollableAncestor,
     isScrolledToBottom,
     nextScrollAction,
     settleToBottom,
+    snapshotScroll,
     stickinessAfterScroll,
     stickinessAfterWheel,
 } from '../src/lib/client/features/chat/chat-app-main/chat-scroll';
@@ -110,28 +114,100 @@ describe('createScrollTracker', () => {
 });
 
 describe('stickinessAfterScroll', () => {
+    const prev = (scrollHeight: number, scrollTop: number, clientHeight: number) =>
+        snapshotScroll(metrics(scrollHeight, scrollTop, clientHeight));
+
     it('stays sticky when content grows past the threshold without the user scrolling', () => {
-        expect(stickinessAfterScroll(true, metrics(1200, 600, 400), 600)).toBe(true);
+        expect(stickinessAfterScroll(true, metrics(1200, 600, 400), prev(1000, 600, 400))).toBe(true);
     });
 
     it('stays sticky when our own write moves the view down', () => {
-        expect(stickinessAfterScroll(true, metrics(1200, 800, 400), 600)).toBe(true);
+        expect(stickinessAfterScroll(true, metrics(1200, 800, 400), prev(1200, 600, 400))).toBe(true);
+    });
+
+    it('stays sticky when our own pin moves the view to the bottom', () => {
+        expect(stickinessAfterScroll(true, metrics(1200, 800, 400), prev(1200, 700, 400))).toBe(true);
+    });
+
+    it('stays sticky when a clamp lowers scrollTop together with the scroll range', () => {
+        expect(stickinessAfterScroll(true, metrics(900, 500, 400), prev(1000, 600, 400))).toBe(true);
+    });
+
+    it('stays sticky on a sub-pixel drop with an unchanged range', () => {
+        expect(stickinessAfterScroll(true, metrics(1000, 599.7, 400), prev(1000, 600, 400))).toBe(true);
+    });
+
+    it('unsticks on a 2px drop with an unchanged range', () => {
+        expect(stickinessAfterScroll(true, metrics(1000, 598, 400), prev(1000, 600, 400))).toBe(false);
     });
 
     it('unsticks when the user scrolls up away from the bottom', () => {
-        expect(stickinessAfterScroll(true, metrics(1200, 300, 400), 800)).toBe(false);
+        expect(stickinessAfterScroll(true, metrics(1200, 300, 400), prev(1200, 800, 400))).toBe(false);
     });
 
-    it('stays sticky on a small upward nudge that is still within the threshold', () => {
-        expect(stickinessAfterScroll(true, metrics(1000, 590, 400), 600)).toBe(true);
+    it('unsticks on a small upward user move within the threshold', () => {
+        expect(stickinessAfterScroll(true, metrics(1000, 590, 400), prev(1000, 600, 400))).toBe(false);
+    });
+
+    it('does not re-arm after a wheel unstick when the scroll stays within the threshold without moving down', () => {
+        const afterWheel = stickinessAfterWheel(true, -1);
+        expect(afterWheel).toBe(false);
+        expect(stickinessAfterScroll(afterWheel, metrics(1000, 590, 400), prev(1000, 600, 400))).toBe(false);
+        expect(stickinessAfterScroll(afterWheel, metrics(1000, 595, 400), prev(1000, 600, 400))).toBe(false);
     });
 
     it('re-sticks when the user scrolls back to the bottom', () => {
-        expect(stickinessAfterScroll(false, metrics(1000, 600, 400), 300)).toBe(true);
+        expect(stickinessAfterScroll(false, metrics(1000, 600, 400), prev(1000, 300, 400))).toBe(true);
     });
 
     it('stays unstuck when the user scrolls down but not to the bottom', () => {
-        expect(stickinessAfterScroll(false, metrics(2000, 900, 400), 300)).toBe(false);
+        expect(stickinessAfterScroll(false, metrics(2000, 900, 400), prev(2000, 300, 400))).toBe(false);
+    });
+});
+
+describe('isInsideScrollableAncestor', () => {
+    const setup = (scrollTop: number) => {
+        const { document } = new JSDOM('<div id="root"><div id="block"><span id="inner"></span></div></div>').window;
+        const root = document.getElementById('root')!;
+        const block = document.getElementById('block')!;
+        const inner = document.getElementById('inner')!;
+        block.style.overflowY = 'auto';
+        Object.defineProperty(block, 'scrollHeight', { value: 500, configurable: true });
+        Object.defineProperty(block, 'clientHeight', { value: 100, configurable: true });
+        Object.defineProperty(block, 'scrollTop', { value: scrollTop, configurable: true });
+        return { root, block, inner };
+    };
+
+    it('is true for an upward gesture over a scrollable block that can scroll up', () => {
+        const { root, inner } = setup(50);
+        expect(isInsideScrollableAncestor(inner, root, -10)).toBe(true);
+    });
+
+    it('is false for an upward gesture when the block is already at the top', () => {
+        const { root, inner } = setup(0);
+        expect(isInsideScrollableAncestor(inner, root, -10)).toBe(false);
+    });
+
+    it('is true for a downward gesture while the block has room below', () => {
+        const { root, inner } = setup(0);
+        expect(isInsideScrollableAncestor(inner, root, 10)).toBe(true);
+    });
+
+    it('is false when the block does not overflow', () => {
+        const { root, block, inner } = setup(50);
+        Object.defineProperty(block, 'scrollHeight', { value: 100, configurable: true });
+        expect(isInsideScrollableAncestor(inner, root, -10)).toBe(false);
+    });
+
+    it('is false when overflow-y is not scrollable', () => {
+        const { root, block, inner } = setup(50);
+        block.style.overflowY = 'visible';
+        expect(isInsideScrollableAncestor(inner, root, -10)).toBe(false);
+    });
+
+    it('is false for a null target', () => {
+        const { root } = setup(50);
+        expect(isInsideScrollableAncestor(null, root, -10)).toBe(false);
     });
 });
 

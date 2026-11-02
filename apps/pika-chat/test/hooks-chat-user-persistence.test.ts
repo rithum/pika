@@ -11,27 +11,27 @@ const validateCookiesMock = jest.fn<(event: unknown, km: unknown) => { overallSt
 const writeBackMock = jest.fn<(user: Rec, chatUser: Rec) => Rec | undefined>();
 const bypassMock = jest.fn<() => boolean>();
 
-jest.mock('$lib/server/auth', () => ({
+jest.unstable_mockModule('$lib/server/auth', () => ({
     loadAuthProvider: async () => ({ authenticate: (event: unknown) => authenticateMock(event) }),
     ForceUserToReauthenticateError: class extends Error {},
     NotAuthenticatedError: class extends Error {}
 }));
-jest.mock('$lib/custom/chat-user-auth', () => ({
+jest.unstable_mockModule('$lib/custom/chat-user-auth', () => ({
     shouldBypassChatUserRoleMerge: () => bypassMock(),
     rolesForChatUserRecord: (roles: string[] | undefined) => (roles ? [...roles, 'tagged'] : roles),
     mergeStoredRolesIntoSession: (sessionRoles: string[] | undefined, storedRoles: string[] | undefined) => [...(storedRoles ?? sessionRoles ?? []), 'merged'],
     mergeChatUserCustomData: (user: Rec, chatUser: Rec) => ({ ...((chatUser.customData as Rec) ?? {}), mergedFor: user.userId }),
     resolveChatUserAccountWriteBack: (user: Rec, chatUser: Rec) => writeBackMock(user, chatUser)
 }));
-jest.mock('$lib/custom/server-hooks', () => ({
+jest.unstable_mockModule('$lib/custom/server-hooks', () => ({
     onAuthProviderCallback: async () => undefined,
     onBeforeAuth: async () => ({ clearSession: false })
 }));
-jest.mock('$lib/server/chat-apis', () => ({
+jest.unstable_mockModule('$lib/server/chat-apis', () => ({
     getChatUser: (userId: string) => getChatUserMock(userId),
     createChatUser: (user: Rec) => createChatUserMock(user)
 }));
-jest.mock('$lib/server/config', () => ({
+jest.unstable_mockModule('$lib/server/config', () => ({
     appConfig: {
         isLocal: false,
         cookieMaxAgeHours: 12,
@@ -43,7 +43,7 @@ jest.mock('$lib/server/config', () => ({
         maxKeyVersions: 2
     }
 }));
-jest.mock('$lib/server/cookies', () => ({
+jest.unstable_mockModule('$lib/server/cookies', () => ({
     clearAllCookies: jest.fn(),
     clearForceReauthRetryCookie: jest.fn(),
     clearForceReauthRetryCookieIfExists: () => false,
@@ -55,16 +55,16 @@ jest.mock('$lib/server/cookies', () => ({
     setForceReauthRetryCookie: jest.fn(),
     validateAllCookieVersions: (event: unknown, km: unknown) => validateCookiesMock(event, km)
 }));
-jest.mock('$lib/server/encryption/KeyManager', () => ({
+jest.unstable_mockModule('$lib/server/encryption/KeyManager', () => ({
     KeyManager: class {
         initialize = async () => undefined;
         refreshKeysIfNeeded = async () => undefined;
     }
 }));
-jest.mock('$lib/server/encryption/KeyManagerFactory', () => ({
+jest.unstable_mockModule('$lib/server/encryption/KeyManagerFactory', () => ({
     KeyManagerFactory: { setInstance: jest.fn() }
 }));
-jest.mock('$lib/server/utils', () => ({
+jest.unstable_mockModule('$lib/server/utils', () => ({
     addSecurityHeaders: (response: Response) => response,
     arraysEqual: (a: string[] | undefined, b: string[] | undefined) => JSON.stringify(a ?? []) === JSON.stringify(b ?? []),
     isUserAllowedToUseUserDataOverrides: () => false,
@@ -72,8 +72,10 @@ jest.mock('$lib/server/utils', () => ({
     mergeAuthenticatedUserWithExistingChatUser: jest.fn(),
     validateRedirectPath: () => undefined
 }));
+jest.unstable_mockModule('$lib/server/auth/default-provider', () => ({ default: class DefaultAuthProvider {} }));
 
-import { handle, init } from '../src/hooks.server';
+const { handle, init } = await import('../src/hooks.server');
+
 
 function makeEvent() {
     return { url: new URL('https://example.com/chat'), locals: {}, cookies: {} } as never;

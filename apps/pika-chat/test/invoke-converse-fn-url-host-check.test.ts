@@ -2,7 +2,7 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 
 const config = { override: undefined as string | undefined };
 
-jest.mock('$lib/server/config', () => ({
+jest.unstable_mockModule('$lib/server/config', () => ({
     appConfig: {
         isLocal: true,
         awsRegion: 'us-east-1',
@@ -11,11 +11,12 @@ jest.mock('$lib/server/config', () => ({
         getArbitraryConfigValueNotRequired: (key: string) => (key === 'LOCAL_CONVERSE_FUNCTION_URL' ? config.override : undefined)
     }
 }));
-jest.mock('@aws-sdk/credential-provider-node', () => ({
+jest.unstable_mockModule('@aws-sdk/credential-provider-node', () => ({
     defaultProvider: () => async () => ({ accessKeyId: 'AKIDEXAMPLE', secretAccessKey: 'secret' })
 }));
 
-import { invokeConverseFunctionUrl } from '../src/lib/server/invoke-converse-fn-url';
+const { invokeConverseFunctionUrl } = await import('../src/lib/server/invoke-converse-fn-url');
+
 
 const REQUEST = { userId: 'u1', message: 'hi' } as never;
 const USER = { userId: 'u1' } as never;

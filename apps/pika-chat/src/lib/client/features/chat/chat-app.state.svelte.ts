@@ -156,6 +156,8 @@ export class ChatAppState implements IChatAppState {
     #appState = $state<AppState>() as AppState;
     #userPrefs = $state<UserPrefsState>() as UserPrefsState;
     #traceLoadStates = $state<Record<string, TraceLoadState>>({});
+    #sessionGeneration = 0;
+    #loadedTraces = new Map<string, NonNullable<ChatMessageForRendering['traces']>>();
     #userWidgetDataCache = new Map<string, UserWidgetDataStoreState>();
 
     // Widget metadata storage - keyed by instanceId
@@ -1965,6 +1967,9 @@ export class ChatAppState implements IChatAppState {
      * Pass in undefined to create a new interim session for a new chat session.
      */
     #setSession(session: ChatSession<RecordOrUndef> | undefined) {
+        this.#sessionGeneration++;
+        this.#traceLoadStates = {};
+        this.#loadedTraces.clear();
         if (session) {
             this.#currentSession = session;
             this.#curSessionMessages = [];
@@ -2133,10 +2138,15 @@ export class ChatAppState implements IChatAppState {
         return this.#traceLoadStates[messageId] ?? IDLE_TRACE_LOAD_STATE;
     }
 
+    getLoadedTraces(messageId: string) {
+        return this.#loadedTraces.get(messageId);
+    }
+
     async loadTracesForMessage(message: ChatMessageForRendering): Promise<void> {
         if (!message.hasOffloadedTraces) return;
         if (this.getTraceLoadState(message.messageId).status !== 'idle') return;
         this.#traceLoadStates[message.messageId] = { status: 'loading' };
+        const generation = this.#sessionGeneration;
 
         const current = this.#currentSession;
         const shareQuery =
@@ -2147,6 +2157,7 @@ export class ChatAppState implements IChatAppState {
             const resp = await this.fetchz(
                 `/api/trace/${this.#chatApp.chatAppId}/${message.sessionId}/${encodeURIComponent(message.messageId)}${shareQuery}`
             );
+            if (generation !== this.#sessionGeneration) return;
             if (resp.status === 403) {
                 this.#traceLoadStates[message.messageId] = { status: 'empty' };
                 return;
@@ -2156,6 +2167,7 @@ export class ChatAppState implements IChatAppState {
                 return;
             }
             const body = (await resp.json()) as ChatMessageTracesResponse;
+            if (generation !== this.#sessionGeneration) return;
             if (!Array.isArray(body?.traces)) {
                 this.#traceLoadStates[message.messageId] = { status: 'error', error: 'Malformed traces response' };
                 return;
@@ -2164,9 +2176,10 @@ export class ChatAppState implements IChatAppState {
                 this.#traceLoadStates[message.messageId] = { status: 'empty' };
                 return;
             }
-            message.traces = body.traces;
+            this.#loadedTraces.set(message.messageId, body.traces);
             this.#traceLoadStates[message.messageId] = { status: 'loaded' };
         } catch (e) {
+            if (generation !== this.#sessionGeneration) return;
             this.#traceLoadStates[message.messageId] = { status: 'error', error: e instanceof Error ? e.message : String(e) };
         }
     }

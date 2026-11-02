@@ -128,7 +128,7 @@ export async function invokeConverseFunctionUrl<T extends RecordOrUndef = undefi
 
             // Try to get Inference Profile ARNs from SSM parameter store
             try {
-                const profileKeys = ['Claude4Sonnet', 'Claude4_5Haiku', 'Claude4_5Sonnet'];
+                const profileKeys = ['Claude4_5Haiku', 'Claude4_6Sonnet', 'Claude5Sonnet', 'Claude5_5Sonnet'];
                 for (const key of profileKeys) {
                     try {
                         const ssmPath = `/stack/${name}/${stage}/inference-profile/${key}`;

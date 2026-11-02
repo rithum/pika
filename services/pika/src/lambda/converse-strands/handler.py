@@ -29,7 +29,7 @@ from verification import (
     verify_response,
 )
 from context_items import (LLM_CONTEXT_XML_ATTR, LLM_CORRECTION_ATTR, LLM_USER_CONTENT_ATTR, SENT_CONTEXTS_ATTR,
-                           build_context_xml, build_sent_context_record,
+                           build_context_xml, build_sent_context_record, context_item_id,
                            llm_context_xml_fits_message_item, message_content_for_llm_replay,
                            update_session_sent_contexts)
 
@@ -73,9 +73,7 @@ SONNET_5_5_MODEL_ID = 'us.anthropic.claude-sonnet-5-5'
 DEFAULT_MODEL_ID = os.environ.get('MODEL_ID', SONNET_5_5_MODEL_ID)
 ADAPTIVE_THINKING_MODEL_IDS = frozenset({SONNET_5_MODEL_ID, SONNET_5_5_MODEL_ID})
 INFERENCE_PROFILE_ENV_BY_MODEL_ID = {
-    'us.anthropic.claude-sonnet-4-20250514-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4Sonnet',
     'us.anthropic.claude-haiku-4-5-20251001-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_5Haiku',
-    'us.anthropic.claude-sonnet-4-5-20250929-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_5Sonnet',
     'us.anthropic.claude-sonnet-4-6': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_6Sonnet',
     SONNET_5_MODEL_ID: 'INFERENCE_PROFILE_ANTHROPIC_Claude5Sonnet',
     SONNET_5_5_MODEL_ID: 'INFERENCE_PROFILE_ANTHROPIC_Claude5_5Sonnet',
@@ -84,6 +82,7 @@ PIKA_S3_BUCKET = os.environ.get('PIKA_S3_BUCKET', '')
 
 # Agent loop constraints
 MAX_ITERATIONS = 10
+GENERIC_ERROR_MESSAGE = 'An internal error occurred. Please try again.'
 LAMBDA_TIMEOUT_BUFFER_SECONDS = 30
 
 # Heartbeat cadence — must match the TypeScript converse Lambda (bedrock-agent.ts)
@@ -2139,8 +2138,8 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
         full_usage = extract_full_usage(agent_result)
         input_tokens = full_usage.get('inputTokens', 0)
         output_tokens = full_usage.get('outputTokens', 0)
-        cache_read_tokens = full_usage.get('cacheReadInputTokens', 0) or swarm_cache_read
-        cache_write_tokens = full_usage.get('cacheWriteInputTokens', 0) or swarm_cache_write
+        cache_read_tokens = max(full_usage.get('cacheReadInputTokens', 0) or 0, swarm_cache_read)
+        cache_write_tokens = max(full_usage.get('cacheWriteInputTokens', 0) or 0, swarm_cache_write)
         usage = calculate_usage(input_tokens, output_tokens, model_id,
                                 cache_read_tokens=cache_read_tokens,
                                 cache_write_tokens=cache_write_tokens)
@@ -2358,9 +2357,9 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
             try:
                 sent_contexts = {}
                 msg_ids = [user_message_id, assistant_message_id]
-                for item in llm_context_items:
-                    record = build_sent_context_record(item, msg_ids)
-                    sent_contexts[item.get('id', '')] = record
+                for i, item in enumerate(llm_context_items, start=1):
+                    record = build_sent_context_record(item, msg_ids, index=i)
+                    sent_contexts[context_item_id(item, i)] = record
                 update_session_sent_contexts(dynamodb, CHAT_SESSION_TABLE, user_id, session_id, sent_contexts)
             except Exception as ctx_err:
                 logger.warning(f"Session insights update failed: {ctx_err}")
@@ -2387,10 +2386,13 @@ def handler(event, context, chunk_queue: queue.Queue | None = None):
 
     except Exception as e:
         logger.error(f"Handler error: {e}", exc_info=True)
-        stream.write(json.dumps({'error': str(e)}))
+        request_id = getattr(context, 'aws_request_id', None)
+        error_message = (f'{GENERIC_ERROR_MESSAGE} (ref {request_id})'
+                         if isinstance(request_id, str) and request_id else GENERIC_ERROR_MESSAGE)
+        stream.write(json.dumps({'error': error_message}))
         stream.end()
         if _owns_queue:
-            return _error_response(500, str(e))
+            return _error_response(500, error_message)
     finally:
         # Close any MCP client sessions opened by this invocation. MCPClient
         # runs a background thread + open HTTP session that stays alive for

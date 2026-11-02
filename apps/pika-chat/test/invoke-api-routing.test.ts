@@ -3,7 +3,7 @@ import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals
 const config = { isLocal: false, localBase: undefined as string | undefined };
 const signMock = jest.fn<(req: Record<string, unknown>) => Promise<Record<string, unknown>>>();
 
-jest.mock('$lib/server/config', () => ({
+jest.unstable_mockModule('$lib/server/config', () => ({
     appConfig: {
         get isLocal() {
             return config.isLocal;
@@ -13,21 +13,22 @@ jest.mock('$lib/server/config', () => ({
         getArbitraryConfigValueNotRequired: (key: string) => (key === 'LOCAL_CHAT_API_BASE_URL' ? config.localBase : undefined)
     }
 }));
-jest.mock('@aws-sdk/credential-provider-node', () => ({
+jest.unstable_mockModule('@aws-sdk/credential-provider-node', () => ({
     defaultProvider: () => async () => ({ accessKeyId: 'AKIDEXAMPLE', secretAccessKey: 'secret' })
 }));
-jest.mock('@smithy/signature-v4', () => ({
+jest.unstable_mockModule('@smithy/signature-v4', () => ({
     SignatureV4: class {
         sign(req: Record<string, unknown>) {
             return signMock(req);
         }
     }
 }));
-jest.mock('$lib/server/utils', () => ({
+jest.unstable_mockModule('$lib/server/utils', () => ({
     checkApiGatewayResponse: () => undefined
 }));
 
-import { invokeApi } from '../src/lib/server/invoke-api';
+const { invokeApi } = await import('../src/lib/server/invoke-api');
+
 
 const DEPLOYED_URL = 'https://api123.execute-api.us-east-1.amazonaws.com/api/chat/user/u1';
 

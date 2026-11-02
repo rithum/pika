@@ -144,6 +144,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
     #componentRegistry: ComponentRegistry;
     #supportedTagsPattern: RegExp | undefined;
     #lastTagsHash: string = '';
+    #fedLength = new WeakMap<ProcessedSegment[], number>();
     #showToast: ShowToastFn;
 
     constructor(componentRegistry: ComponentRegistry, showToast: ShowToastFn) {
@@ -214,6 +215,9 @@ export class MessageSegmentProcessor implements SegmentProcessor {
         // });
 
         const modifiedSegments: ProcessedSegment[] = [];
+
+        const messageEnd = (this.#fedLength.get(segments) ?? 0) + content.length;
+        this.#fedLength.set(segments, messageEnd);
 
         // Mark any existing streaming segments as modified so they get their status updated
         // This handles the case where we have streaming segments that aren't the last segment
@@ -347,6 +351,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             segmentStartIndex = segments.length;
         }
 
+        const parseOrigin = messageEnd - contentToParse.length;
         const tagPattern = this.getSupportedTagsPattern();
         let searchIndex = 0;
 
@@ -393,7 +398,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             // Add the complete tag segment
             const tagType = match[1];
             const tagContent = match[2];
-            const tagSegment = this.createTagSegment(tagType, tagContent, segments);
+            const tagSegment = this.createTagSegment(tagType, tagContent, segments, parseOrigin + actualIndex);
             tagSegment.streamingStatus = 'completed'; // Complete tags are always completed
             // console.log('[SEGMENT-PROCESSOR] Created complete tag segment:', {
             //     id: tagSegment.id,
@@ -417,7 +422,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             // });
 
             if (isStreaming) {
-                this.parseRemainingContentStreaming(remainingContent, segments, modifiedSegments);
+                this.parseRemainingContentStreaming(remainingContent, segments, modifiedSegments, parseOrigin + searchIndex);
             } else {
                 // Not streaming, treat all remaining content as text
                 // console.log('[SEGMENT-PROCESSOR] Adding remaining content as text (not streaming)');
@@ -527,23 +532,32 @@ export class MessageSegmentProcessor implements SegmentProcessor {
 
     doneStreaming(segments: ProcessedSegment[], fullMessage?: string): void {
         if (fullMessage !== undefined) {
-            const handled = new Map<string, number>();
+            const handled: MetadataTagSegment[] = [];
             for (const seg of segments) {
                 if ('isMetadata' in seg && seg.isMetadata && seg.hasCalledHandler) {
-                    const key = `${seg.tag}\u0000${seg.rawContent}`;
-                    handled.set(key, (handled.get(key) ?? 0) + 1);
+                    handled.push(seg);
                 }
             }
             segments.splice(0, segments.length);
+            this.#fedLength.delete(segments);
             this.parseMessage(fullMessage, segments, false);
-            for (const seg of segments) {
-                if ('isMetadata' in seg && seg.isMetadata) {
-                    const key = `${seg.tag}\u0000${seg.rawContent}`;
-                    const remaining = handled.get(key) ?? 0;
-                    if (remaining > 0) {
-                        seg.hasCalledHandler = true;
-                        handled.set(key, remaining - 1);
-                    }
+            const reparsedMetadata = segments.filter((seg): seg is MetadataTagSegment => 'isMetadata' in seg && seg.isMetadata);
+            const unmatched: MetadataTagSegment[] = [];
+            for (const seg of reparsedMetadata) {
+                const idx = handled.findIndex((h) => h.tag === seg.tag && h.offset === seg.offset);
+                if (idx === -1) {
+                    unmatched.push(seg);
+                } else {
+                    seg.hasCalledHandler = true;
+                    handled.splice(idx, 1);
+                }
+            }
+            // Offsets can drift when a carried-over opener is rebuilt at a different length; content then decides.
+            for (const seg of unmatched) {
+                const idx = handled.findIndex((h) => h.tag === seg.tag && h.rawContent === seg.rawContent);
+                if (idx !== -1) {
+                    seg.hasCalledHandler = true;
+                    handled.splice(idx, 1);
                 }
             }
             // The reparse can miss a segment in its modified set, and no renderer may keep a streaming cursor after completion.
@@ -639,7 +653,12 @@ export class MessageSegmentProcessor implements SegmentProcessor {
     /**
      * Parse remaining content during streaming with robust left-to-right parsing
      */
-    private parseRemainingContentStreaming(content: string, segments: ProcessedSegment[], modifiedSegments: ProcessedSegment[]): void {
+    private parseRemainingContentStreaming(
+        content: string,
+        segments: ProcessedSegment[],
+        modifiedSegments: ProcessedSegment[],
+        contentOffset: number
+    ): void {
         // console.log('[SEGMENT-PROCESSOR] parseRemainingContentStreaming called:', {
         //     contentLength: content.length,
         //     contentPreview: content.slice(0, 100)
@@ -696,7 +715,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
             if (tagAnalysis.isValid) {
                 if (tagAnalysis.type === 'complete') {
                     // Found <tag>content</tag>
-                    const tagSegment = this.createTagSegment(tagAnalysis.tagName!, tagAnalysis.content!, segments);
+                    const tagSegment = this.createTagSegment(tagAnalysis.tagName!, tagAnalysis.content!, segments, contentOffset + nextTagStart);
                     tagSegment.streamingStatus = 'completed'; // Complete tags are always completed
                     segments.push(tagSegment);
                     modifiedSegments.push(tagSegment);
@@ -707,7 +726,7 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                     // });
                 } else if (tagAnalysis.type === 'streaming') {
                     // Found <tag> or <tag> or <tag content but no closing tag
-                    const tagSegment = this.createTagSegment(tagAnalysis.tagName!, tagAnalysis.content!, segments);
+                    const tagSegment = this.createTagSegment(tagAnalysis.tagName!, tagAnalysis.content!, segments, contentOffset + nextTagStart);
                     tagSegment.streamingStatus = 'streaming';
                     segments.push(tagSegment);
                     modifiedSegments.push(tagSegment);
@@ -1062,7 +1081,12 @@ export class MessageSegmentProcessor implements SegmentProcessor {
     /**
      * Create a tag segment (either ProcessedTagSegment or MetadataTagSegment)
      */
-    private createTagSegment(tagType: string, tagContent: string, segments: ProcessedSegment[]): ProcessedTagSegment | MetadataTagSegment {
+    private createTagSegment(
+        tagType: string,
+        tagContent: string,
+        segments: ProcessedSegment[],
+        offset: number
+    ): ProcessedTagSegment | MetadataTagSegment {
         const nextId = segments.length;
 
         // console.log('[SEGMENT-PROCESSOR] Creating tag segment:', {
@@ -1088,7 +1112,8 @@ export class MessageSegmentProcessor implements SegmentProcessor {
                 streamingStatus: 'streaming', // Will be set by main method
                 rendererType: tagType,
                 renderer: undefined,
-                isMetadata: true
+                isMetadata: true,
+                offset
             };
             // console.log(`[SEGMENT-PROCESSOR] Creating metadata tag segment: ${tagType} with content: ${tagContent}`);
             return metadataSegment;

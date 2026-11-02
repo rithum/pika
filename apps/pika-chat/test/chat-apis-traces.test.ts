@@ -2,14 +2,14 @@ import { describe, it, expect, jest, beforeEach } from '@jest/globals';
 
 const invokeApiMock = jest.fn<(args: { path: string }) => Promise<{ body: unknown }>>();
 
-jest.mock('$lib/server/invoke-api', () => ({
+jest.unstable_mockModule('$lib/server/invoke-api', () => ({
     invokeApi: (args: { path: string }) => invokeApiMock(args)
 }));
-jest.mock('$lib/server/config', () => ({
+jest.unstable_mockModule('$lib/server/config', () => ({
     appConfig: { pikaS3Bucket: 'bucket', awsRegion: 'us-east-1', chatApiId: 'api', stage: 'test', jwtSecret: 'secret' }
 }));
 
-import { getChatMessages, getMessageTraces } from '$lib/server/chat-apis';
+const { getChatMessages, getMessageTraces } = await import('$lib/server/chat-apis');
 
 describe('chat-apis trace paths', () => {
     beforeEach(() => {
