@@ -133,6 +133,14 @@ describe('stickinessAfterScroll', () => {
         expect(stickinessAfterScroll(true, metrics(900, 500, 400), prev(1000, 600, 400))).toBe(true);
     });
 
+    it('stays sticky on a sub-pixel drop with an unchanged range', () => {
+        expect(stickinessAfterScroll(true, metrics(1000, 599.7, 400), prev(1000, 600, 400))).toBe(true);
+    });
+
+    it('unsticks on a 2px drop with an unchanged range', () => {
+        expect(stickinessAfterScroll(true, metrics(1000, 598, 400), prev(1000, 600, 400))).toBe(false);
+    });
+
     it('unsticks when the user scrolls up away from the bottom', () => {
         expect(stickinessAfterScroll(true, metrics(1200, 300, 400), prev(1200, 800, 400))).toBe(false);
     });

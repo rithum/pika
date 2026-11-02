@@ -6,6 +6,8 @@ export function isScrolledToBottom(element: ScrollMetrics, threshold = STICKY_BO
     return element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
 }
 
+const USER_SCROLL_TOLERANCE_PX = 1;
+
 export interface ScrollSnapshot {
     scrollTop: number;
     maxScroll: number;
@@ -19,7 +21,9 @@ export function snapshotScroll(element: ScrollMetrics): ScrollSnapshot {
 export function stickinessAfterScroll(wasSticky: boolean, element: ScrollMetrics, previous: ScrollSnapshot): boolean {
     const now = snapshotScroll(element);
     const drop = previous.scrollTop - now.scrollTop;
-    if (drop > 0 && previous.maxScroll - now.maxScroll < drop) return false;
+    if (drop > USER_SCROLL_TOLERANCE_PX && previous.maxScroll - now.maxScroll < drop - USER_SCROLL_TOLERANCE_PX) {
+        return false;
+    }
     if (isScrolledToBottom(element) && drop <= 0) return true;
     return wasSticky;
 }
