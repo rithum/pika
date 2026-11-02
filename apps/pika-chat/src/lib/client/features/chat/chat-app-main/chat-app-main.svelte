@@ -31,7 +31,15 @@
     import { ChatFileValidationError } from '../lib/ChatFileValidationError';
     import { MessageRenderer, type ProcessedTagSegment } from '../message-segments';
     import { visibleTextFromSegments } from '../message-segments/visible-text';
-    import { createScrollTracker, settleToBottom, stickinessAfterScroll, stickinessAfterWheel } from './chat-scroll';
+    import {
+        createScrollTracker,
+        isFileInput,
+        isInsideScrollableAncestor,
+        settleToBottom,
+        snapshotScroll,
+        stickinessAfterScroll,
+        stickinessAfterWheel,
+    } from './chat-scroll';
     import Prompt from '../message-segments/default-components/prompt.svelte';
     import Hero from '../hero/index.svelte';
     import Spotlight from '../spotlight/index.svelte';
@@ -150,19 +158,41 @@
     $effect(() => {
         const el = resizeHeightEl;
         if (!el) return;
-        let lastScrollTop = el.scrollTop;
+        let last = snapshotScroll(el);
+        let touchStartX = 0;
+        let touchStartY = 0;
         const handleScroll = () => {
-            stickToBottom = stickinessAfterScroll(stickToBottom, el, lastScrollTop);
-            lastScrollTop = el.scrollTop;
+            stickToBottom = stickinessAfterScroll(stickToBottom, el, last);
+            last = snapshotScroll(el);
         };
         const handleWheel = (event: WheelEvent) => {
+            if (isInsideScrollableAncestor(event.target, el, event.deltaY)) return;
             stickToBottom = stickinessAfterWheel(stickToBottom, event.deltaY);
+        };
+        const handleTouchStart = (event: TouchEvent) => {
+            const touch = event.touches[0];
+            if (!touch) return;
+            touchStartX = touch.clientX;
+            touchStartY = touch.clientY;
+        };
+        const handleTouchMove = (event: TouchEvent) => {
+            const touch = event.touches[0];
+            if (!touch) return;
+            const dx = touch.clientX - touchStartX;
+            const dy = touch.clientY - touchStartY;
+            if (Math.abs(dy) > Math.abs(dx) && dy > 0 && !isInsideScrollableAncestor(event.target, el, -dy)) {
+                stickToBottom = false;
+            }
         };
         el.addEventListener('scroll', handleScroll, { passive: true });
         el.addEventListener('wheel', handleWheel, { passive: true });
+        el.addEventListener('touchstart', handleTouchStart, { passive: true });
+        el.addEventListener('touchmove', handleTouchMove, { passive: true });
         return () => {
             el.removeEventListener('scroll', handleScroll);
             el.removeEventListener('wheel', handleWheel);
+            el.removeEventListener('touchstart', handleTouchStart);
+            el.removeEventListener('touchmove', handleTouchMove);
         };
     });
 
@@ -311,10 +341,12 @@
         // A file dropped outside a drop zone makes the browser navigate to it, losing the conversation; scoped to file drags only.
         const carriesFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files') === true;
         const handleWindowDragOver = (event: DragEvent) => {
-            if (carriesFiles(event)) event.preventDefault();
+            if (!carriesFiles(event) || isFileInput(event.target)) return;
+            event.preventDefault();
+            if (!chat.enableFileUpload && event.dataTransfer) event.dataTransfer.dropEffect = 'none';
         };
         const handleWindowDrop = (event: DragEvent) => {
-            if (carriesFiles(event)) event.preventDefault();
+            if (carriesFiles(event) && !isFileInput(event.target)) event.preventDefault();
             clearDragState();
         };
         window.addEventListener('dragend', clearDragState);

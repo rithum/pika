@@ -6,9 +6,44 @@ export function isScrolledToBottom(element: ScrollMetrics, threshold = STICKY_BO
     return element.scrollHeight - element.scrollTop - element.clientHeight < threshold;
 }
 
-/** Content growth fires scroll events before the ResizeObserver can re-pin, so only an upward move may unstick. */
-export function stickinessAfterScroll(wasSticky: boolean, element: ScrollMetrics, previousScrollTop: number): boolean {
-    return isScrolledToBottom(element) || (wasSticky && element.scrollTop >= previousScrollTop);
+export interface ScrollSnapshot {
+    scrollTop: number;
+    maxScroll: number;
+}
+
+export function snapshotScroll(element: ScrollMetrics): ScrollSnapshot {
+    return { scrollTop: element.scrollTop, maxScroll: element.scrollHeight - element.clientHeight };
+}
+
+/** Growth never lowers scrollTop, and a clamp lowers it together with maxScroll, so any other upward move is the user's. */
+export function stickinessAfterScroll(wasSticky: boolean, element: ScrollMetrics, previous: ScrollSnapshot): boolean {
+    const now = snapshotScroll(element);
+    const drop = previous.scrollTop - now.scrollTop;
+    if (drop > 0 && previous.maxScroll - now.maxScroll < drop) return false;
+    if (isScrolledToBottom(element) && drop <= 0) return true;
+    return wasSticky;
+}
+
+const isElement = (target: EventTarget | null): target is Element =>
+    target !== null && (target as Node).nodeType === 1;
+
+/** True when the gesture would scroll a nested scroller (such as a code block) instead of the chat. */
+export function isInsideScrollableAncestor(target: EventTarget | null, root: Element, deltaY: number): boolean {
+    let node = isElement(target) ? target : null;
+    while (node && node !== root) {
+        const view = node.ownerDocument.defaultView;
+        const overflowY = view?.getComputedStyle(node).overflowY;
+        if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+            if (deltaY < 0 && node.scrollTop > 0) return true;
+            if (deltaY > 0 && node.scrollTop + node.clientHeight < node.scrollHeight) return true;
+        }
+        node = node.parentElement;
+    }
+    return false;
+}
+
+export function isFileInput(target: EventTarget | null): boolean {
+    return isElement(target) && target.tagName === 'INPUT' && (target as HTMLInputElement).type === 'file';
 }
 
 /** An upward wheel is the user leaving the bottom even when the move is smaller than the threshold. */
