@@ -168,3 +168,78 @@ describe('sanitizeChatHtml — lifting a media tag lifts its URL attribute', () 
         expect(out).not.toContain('style=');
     });
 });
+
+describe('sanitizeChatHtml — table alignment style', () => {
+    const cell = (tag: string, style: string) =>
+        sanitizeChatHtml(`<table><tr><${tag} style="${style}">a</${tag}></tr></table>`);
+
+    it('keeps markdown-style alignment on th and td', () => {
+        const out = sanitizeChatHtml(
+            '<table><tr><th style="text-align:center">a</th><td style="text-align:right">b</td></tr></table>'
+        );
+        expect(out).toContain('<th style="text-align:center">');
+        expect(out).toContain('<td style="text-align:right">');
+    });
+
+    it('keeps alignment with spaces and a trailing semicolon', () => {
+        expect(cell('td', 'text-align: left ;')).toContain('style="text-align: left ;"');
+    });
+
+    it.each([
+        ['extra declaration', 'td', 'text-align:center;background:url(x)'],
+        ['uppercase property', 'td', 'TEXT-ALIGN:center'],
+        ['url value', 'td', 'text-align:url(x)'],
+        ['escape', 'td', 'text-align:center\\;'],
+        ['other property', 'td', 'color:red'],
+    ])('strips style: %s', (_name, tag, style) => {
+        expect(cell(tag, style)).not.toContain('style=');
+    });
+
+    it('strips alignment style on a div', () => {
+        expect(sanitizeChatHtml('<div style="text-align:center">a</div>')).not.toContain('style=');
+    });
+});
+
+describe('createChatHtmlSanitizer — per-tag attribute lists on lifted built-in tags', () => {
+    const img = '<img src="https://x/y.png" loading="lazy" width="3" alt="a">';
+
+    it('keeps only listed attributes', () => {
+        const out = createChatHtmlSanitizer({ tags: ['img'], attrs: { img: ['alt'] } })(img);
+        expect(out).toContain('alt="a"');
+        expect(out).not.toContain('src=');
+        expect(out).not.toContain('loading=');
+        expect(out).not.toContain('width=');
+    });
+
+    it('keeps listed src and still removes javascript: URIs', () => {
+        const sanitize = createChatHtmlSanitizer({ tags: ['img'], attrs: { img: ['alt', 'src'] } });
+        const out = sanitize(img);
+        expect(out).toContain('alt="a"');
+        expect(out).toContain('src="https://x/y.png"');
+        expect(sanitize('<img src="javascript:alert(1)" alt="a">')).not.toContain('src=');
+    });
+
+    it('keeps default attributes when there is no entry', () => {
+        const out = createChatHtmlSanitizer({ tags: ['img'], attrs: {} })(
+            '<img src="https://x/y.png" alt="a" srcset="https://x/z.png 2x">'
+        );
+        expect(out).toContain('src=');
+        expect(out).toContain('alt=');
+        expect(out).toContain('srcset=');
+    });
+
+    it('keeps the lifted srcset even when the list omits it', () => {
+        const out = createChatHtmlSanitizer({ tags: ['img'], attrs: { img: ['alt'] } })(
+            '<img alt="a" srcset="https://x/z.png 2x">'
+        );
+        expect(out).toContain('srcset=');
+    });
+
+    it('scopes the list to its own sanitizer instance', () => {
+        const restricted = createChatHtmlSanitizer({ tags: ['img'], attrs: { img: ['alt'] } });
+        const open = createChatHtmlSanitizer({ tags: ['img'], attrs: {} });
+        expect(restricted(img)).not.toContain('src=');
+        expect(open(img)).toContain('src=');
+        expect(restricted(img)).not.toContain('src=');
+    });
+});
