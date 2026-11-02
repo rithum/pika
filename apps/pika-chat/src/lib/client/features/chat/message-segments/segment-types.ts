@@ -25,6 +25,8 @@ export interface MetadataTagSegment extends TagMessageSegment {
     renderer: undefined;
     isMetadata: true;
     hasCalledHandler?: boolean;
+    /** Index in the full message where the opening `<tag` begins. */
+    offset?: number;
 }
 
 /**

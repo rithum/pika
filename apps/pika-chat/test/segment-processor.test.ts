@@ -1599,6 +1599,54 @@ describe('MessageSegmentProcessor', () => {
                 expect(reparsed.filter((s) => s.hasCalledHandler === true)).toHaveLength(1);
             });
 
+            it('keys handled metadata by offset so an unhandled earlier tag still runs', () => {
+                const first = 'A <metadata-tag>same</metadata-tag>';
+                const second = ' B <metadata-tag>same</metadata-tag>';
+                const chunks = [first.slice(0, 12), first.slice(12), second];
+                const segments: ProcessedSegment[] = [];
+                chunks.forEach((chunk) => processor.parseMessage(chunk, segments, true));
+                const streamed = segments.filter((s) => 'isMetadata' in s) as MetadataTagSegment[];
+                expect(streamed).toHaveLength(2);
+                streamed[1].hasCalledHandler = true;
+
+                processor.doneStreaming(segments, chunks.join(''));
+
+                const reparsed = segments.filter((s) => 'isMetadata' in s) as MetadataTagSegment[];
+                expect(reparsed).toHaveLength(2);
+                expect(reparsed[0].hasCalledHandler).toBeFalsy();
+                expect(reparsed[1].hasCalledHandler).toBe(true);
+            });
+
+            it('keeps both identical metadata segments handled when both ran while streaming', () => {
+                const fullMessage = '<metadata-tag>same</metadata-tag> x <metadata-tag>same</metadata-tag>';
+                const segments: ProcessedSegment[] = [];
+                processor.parseMessage(fullMessage.slice(0, 20), segments, true);
+                processor.parseMessage(fullMessage.slice(20), segments, true);
+                const metas = segments.filter((s) => 'isMetadata' in s) as MetadataTagSegment[];
+                expect(metas).toHaveLength(2);
+                metas.forEach((m) => (m.hasCalledHandler = true));
+
+                processor.doneStreaming(segments, fullMessage);
+
+                const reparsed = segments.filter((s) => 'isMetadata' in s) as MetadataTagSegment[];
+                expect(reparsed.map((s) => s.hasCalledHandler)).toEqual([true, true]);
+            });
+
+            it.each([1, 2, 3, 7, 1000])('records the same metadata offsets streaming in %i-char chunks as a one-shot parse', (size) => {
+                const fullMessage = 'Hi <tag>x</tag> <metadata-tag>one</metadata-tag> mid < 3 <metadata-tag>two</metadata-tag> end';
+                const oneShot: ProcessedSegment[] = [];
+                processor.parseMessage(fullMessage, oneShot, false);
+                const streamed: ProcessedSegment[] = [];
+                for (let i = 0; i < fullMessage.length; i += size) {
+                    processor.parseMessage(fullMessage.slice(i, i + size), streamed, true);
+                }
+                const offsets = (segs: ProcessedSegment[]) =>
+                    (segs.filter((s) => 'isMetadata' in s) as MetadataTagSegment[]).map((s) => s.offset);
+                const expected = [fullMessage.indexOf('<metadata-tag>one'), fullMessage.indexOf('<metadata-tag>two')];
+                expect(offsets(oneShot)).toEqual(expected);
+                expect(offsets(streamed)).toEqual(expected);
+            });
+
             it('never leaves the streaming cursor on a completed plain-text response', () => {
                 const fullMessage = 'No items were verified fixed.';
                 const segments: ProcessedSegment[] = [];

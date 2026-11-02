@@ -92,8 +92,12 @@
         }
     });
 
-    const stepItems = $derived(buildStepItems(message.traces));
     const traceLoad = $derived(chatAppState?.getTraceLoadState(message.messageId));
+    const effectiveTraces = $derived(
+        message.traces ??
+            (traceLoad?.status === 'loaded' ? chatAppState?.getLoadedTraces(message.messageId) : undefined)
+    );
+    const stepItems = $derived(buildStepItems(effectiveTraces));
 
     /**
      * Recursively traverses an object and parses strings that start and end with {} as JSON
@@ -183,7 +187,7 @@
     }
 
     let filteredTraces = $derived.by(() => {
-        const traces = message.traces;
+        const traces = effectiveTraces;
         return (traces || [])
             .map((val) => {
                 let md;
@@ -299,7 +303,7 @@
     }
 
     let groupedTraces = $derived.by(() => {
-        const traces = message.traces || [];
+        const traces = effectiveTraces || [];
         const grouped: GroupedTrace[] = [];
         const toolInvocations = new Map<
             string,

@@ -59,4 +59,18 @@ describe('trace.svelte offloaded traces', () => {
         render(Trace, { message: makeMessage(), features });
         expect(screen.getByText("Reasoning for this answer isn't available in this view.")).toBeInTheDocument();
     });
+
+    it('renders steps from loaded traces when the message has none of its own', () => {
+        const message = { ...makeMessage(), traces: undefined } as ChatMessageForRendering;
+        const stub = {
+            ...makeStub('loaded'),
+            getLoadedTraces: vi.fn(() => [
+                { step: { event: 'start', id: 'a', label: 'Looking things up', labelDone: 'Looked things up' } },
+                { step: { event: 'done', id: 'a' } }
+            ])
+        };
+        render(Trace, { message, features, chatAppState: stub as never });
+        expect(stub.getLoadedTraces).toHaveBeenCalledWith('s1:1');
+        expect(screen.getByText('Looked things up')).toBeInTheDocument();
+    });
 });

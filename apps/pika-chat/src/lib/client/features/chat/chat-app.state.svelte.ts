@@ -156,6 +156,7 @@ export class ChatAppState implements IChatAppState {
     #appState = $state<AppState>() as AppState;
     #userPrefs = $state<UserPrefsState>() as UserPrefsState;
     #traceLoadStates = $state<Record<string, TraceLoadState>>({});
+    #loadedTraces = new Map<string, NonNullable<ChatMessageForRendering['traces']>>();
     #userWidgetDataCache = new Map<string, UserWidgetDataStoreState>();
 
     // Widget metadata storage - keyed by instanceId
@@ -1965,6 +1966,8 @@ export class ChatAppState implements IChatAppState {
      * Pass in undefined to create a new interim session for a new chat session.
      */
     #setSession(session: ChatSession<RecordOrUndef> | undefined) {
+        this.#traceLoadStates = {};
+        this.#loadedTraces.clear();
         if (session) {
             this.#currentSession = session;
             this.#curSessionMessages = [];
@@ -2133,6 +2136,10 @@ export class ChatAppState implements IChatAppState {
         return this.#traceLoadStates[messageId] ?? IDLE_TRACE_LOAD_STATE;
     }
 
+    getLoadedTraces(messageId: string) {
+        return this.#loadedTraces.get(messageId);
+    }
+
     async loadTracesForMessage(message: ChatMessageForRendering): Promise<void> {
         if (!message.hasOffloadedTraces) return;
         if (this.getTraceLoadState(message.messageId).status !== 'idle') return;
@@ -2164,7 +2171,7 @@ export class ChatAppState implements IChatAppState {
                 this.#traceLoadStates[message.messageId] = { status: 'empty' };
                 return;
             }
-            message.traces = body.traces;
+            this.#loadedTraces.set(message.messageId, body.traces);
             this.#traceLoadStates[message.messageId] = { status: 'loaded' };
         } catch (e) {
             this.#traceLoadStates[message.messageId] = { status: 'error', error: e instanceof Error ? e.message : String(e) };
