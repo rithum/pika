@@ -23,7 +23,7 @@
         "Fixed: the window-level file-drop guard no longer blocks drops into native file inputs, and shows a no-drop cursor when file upload is disabled.",
         "Fixed: metadata tag handlers run exactly once per tag after streaming completes.",
         "Fixed: context items with numeric, 0 or missing IDs get one consistent ID across the prompt, repeat detection and the sent_contexts ledger, in both the TypeScript and Strands paths.",
-        "Fixed: Strands session account backfill never writes an empty accountId, fails the turn when a concurrent writer stored account fields without an account ID, and retries once after losing the session-create race.",
+        "Fixed: Strands session account backfill never writes an empty accountId, replaces a stored blank account ID, fails the turn when a concurrent writer stored account fields without an account ID, and retries once after losing the session-create race.",
         "Fixed: Strands usage counts swarm cache tokens when the agent result reports none.",
         "Fixed: local Strands development loads the Sonnet 4.6, 5 and 5.5 inference profiles."
       ]

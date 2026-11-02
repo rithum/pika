@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **pika-chat jest runs as native ESM** (`--experimental-vm-modules`). Tests use `jest.unstable_mockModule` and `await import(...)`; see Contributing.
 - **5.x invoke bodies built by `buildModelInvokeBodyAnthropic` omit `temperature`, `top_p` and `top_k`**, because Sonnet 5.5 rejects non-default sampling values.
 - **Message replication to OpenSearch hydrates offloaded traces up to 8 reads ahead** instead of one record at a time. Writes keep their order, and a failed read degrades only its record.
-- **The Strands converse handler streams a generic error message** ("An internal error occurred. Please try again.") instead of the raw exception text. Details stay in the log.
+- **The Strands converse handler streams a generic error message** ("An internal error occurred. Please try again.") instead of the raw exception text, followed by `(ref <request id>)` so a report can be matched to its log line. Details stay in the log.
 
 ### Fixed
 
@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Metadata tag handlers run exactly once per tag after streaming completes**, even when a tag's bytes differ between the stream and the final message.
 - **Context items with numeric, `0` or missing IDs get one consistent ID** across the prompt, repeat detection and the `sent_contexts` ledger, in both the TypeScript and Strands paths. Numeric IDs are no longer re-sent in full every turn.
 - **Strands session account backfill:**
-  - an empty `accountId` is never written;
+  - an empty `accountId` is never written, and a stored blank account ID no longer blocks a later real pin;
   - a session where a concurrent writer stored account fields without an account ID fails the turn instead of mixing accounts;
   - losing the session-create race retries once before failing.
 - **Strands usage now counts swarm cache tokens** when the agent result reports none.
