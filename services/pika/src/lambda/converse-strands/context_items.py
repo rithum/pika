@@ -38,6 +38,14 @@ def is_repeat_delivery(
     return item_hash is not None and item_hash == prior_hash
 
 
+def context_item_id(item: dict, index: int) -> str:
+    """Stable id for a context item: its own id when present and non-empty, else ctx-<1-based index>."""
+    raw = item.get('id')
+    if raw is not None and str(raw) != '':
+        return str(raw)
+    return f'ctx-{index}'
+
+
 def build_context_xml(context_items: list[dict], prior_sent_contexts: dict | None = None) -> str:
     """Build <additional-context> XML from llmContextItems.
 
@@ -55,7 +63,7 @@ def build_context_xml(context_items: list[dict], prior_sent_contexts: dict | Non
         '',
     ]
     for i, item in enumerate(context_items, start=1):
-        item_id = item.get('id') or f'ctx-{i}'
+        item_id = context_item_id(item, i)
         description = item.get('description')
         # The client sends the payload under context; data is a legacy fallback.
         data = item.get('context')
@@ -88,10 +96,10 @@ def build_context_xml(context_items: list[dict], prior_sent_contexts: dict | Non
     return '\n'.join(parts)
 
 
-def build_sent_context_record(context_item: dict, message_ids: list[str]) -> dict:
+def build_sent_context_record(context_item: dict, message_ids: list[str], index: int = 1) -> dict:
     """Build a SentContextRecord for DDB storage."""
     return {
-        'sourceId': context_item.get('id', ''),
+        'sourceId': context_item_id(context_item, index),
         'messageIds': message_ids,
         'contentHash': context_item.get('contentHash', ''),
         'lastSentAt': datetime.now(timezone.utc).isoformat(),

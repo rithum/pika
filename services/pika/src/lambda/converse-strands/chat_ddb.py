@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Account-id field names used to decide whether a session already carries
 # account context (mirrors utils.getAccountIdFieldNames / PIKA_ACCOUNT_ID_FIELD_NAMES).
 DEFAULT_ACCOUNT_ID_FIELDS = ('accountId', 'account_id')
+_ACCOUNT_NON_ID_FIELDS = ('accountType', 'account_type', 'accountName', 'account_name', 'account')
 
 
 def _account_id_field_names() -> list[str]:
@@ -136,17 +137,27 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
     response = table.get_item(Key=key, ConsistentRead=True) if _retried else table.get_item(Key=key)
     if 'Item' in response:
         existing = response['Item']
-        # Self-heal: backfills only missing account fields, per key and conditionally, so a concurrent writer's pin wins; a failed write fails the turn rather than running unpinned.
+        # Self-heal: backfills missing account/identity keys per key; a failed or partial account pin fails the turn, an identity-only failure logs and continues.
         existing_attrs = existing.get('session_attributes')
         if not isinstance(existing_attrs, dict):
             existing_attrs = {}
+
+        id_fields = _account_id_field_names()
+        pins_request = bool(session_attributes) and any(
+            _present_account_value(session_attributes.get(k)) for k in id_fields
+        )
+        family_keys = (*id_fields, *_ACCOUNT_NON_ID_FIELDS)
+        if _retried and pins_request and not _has_account_context(existing) and any(k in existing_attrs for k in family_keys):
+            raise ValueError('session has partial account context')
 
         backfill = {}
         if session_attributes and not _has_account_context(existing):
             backfill.update({
                 k: session_attributes[k]
-                for k in (*_account_id_field_names(), 'accountType', 'account_type', 'accountName', 'account_name', 'account')
-                if session_attributes.get(k) is not None and k not in existing_attrs
+                for k in family_keys
+                if k not in existing_attrs
+                and (_present_account_value(session_attributes.get(k)) if k in id_fields
+                     else session_attributes.get(k) is not None)
             })
         pins_account = bool(backfill)
         if session_identity and not _has_session_identity(existing):
@@ -171,10 +182,20 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
                     alias_index += 1
                     names[placeholder] = field
                 guards.append(f'attribute_not_exists(#sa.{placeholder})')
+            if pins_account:
+                for field in _ACCOUNT_NON_ID_FIELDS:
+                    if field in existing_attrs:
+                        continue
+                    placeholder = backfill_placeholders.get(field)
+                    if placeholder is None:
+                        placeholder = f'#a{alias_index}'
+                        alias_index += 1
+                        names[placeholder] = field
+                    guards.append(f'attribute_not_exists(#sa.{placeholder})')
             guards.extend(
                 f'attribute_not_exists(#sa.{p})'
                 for attr, p in backfill_placeholders.items()
-                if attr not in _account_id_field_names()
+                if attr not in id_fields and not (pins_account and attr in _ACCOUNT_NON_ID_FIELDS)
             )
             if not isinstance(existing.get('session_attributes'), dict):
                 try:
@@ -244,6 +265,10 @@ def ensure_session(dynamodb_resource, table_name: str, user_id: str, session_id:
         winner = table.get_item(Key=key, ConsistentRead=True)
         if 'Item' in winner:
             return winner['Item']
+        if not _retried:
+            return ensure_session(dynamodb_resource, table_name, user_id, session_id, agent_id, chat_app_id,
+                                  source=source, user_type=user_type, session_attributes=session_attributes,
+                                  session_identity=session_identity, _retried=True)
         raise RuntimeError(f'Session {session_id} not found after losing the create race')
     return session
 

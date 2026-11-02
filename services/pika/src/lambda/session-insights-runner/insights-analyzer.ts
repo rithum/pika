@@ -50,7 +50,7 @@ function generateAIFeedbackId(sessionId: string, messageId: string, feedbackType
  * This is a circuit breaker to prevent runaway feedback creation bugs.
  */
 async function detectExcessiveAIFeedback(sessionId: string): Promise<boolean> {
-    const THRESHOLD = 10; // >20 AI feedback per message = problem
+    const THRESHOLD = 10; // >10 AI feedback per message = problem
 
     try {
         const osClient = await OsClient.getClient();

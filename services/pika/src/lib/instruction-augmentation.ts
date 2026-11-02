@@ -167,6 +167,11 @@ async function getMatchingSemanticDirectives(scopes: InvocationScopes): Promise<
     }
 }
 
+export function contextItemId(item: { id?: unknown }, index: number): string {
+    const raw = item.id;
+    return raw !== undefined && raw !== null && String(raw) !== '' ? String(raw) : `ctx-${index}`;
+}
+
 /**
  * Filters LLM context items based on relevance to the user's prompt and session history.
  * Always includes items where origin === 'user'.
