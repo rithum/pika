@@ -8,7 +8,7 @@ import {
 } from '@aws-sdk/client-bedrock-agent-runtime';
 import { type ChatMessageUsage } from 'pika-shared/types/chatbot/chatbot-types';
 
-export const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-sonnet-4-6';
+export const DEFAULT_ANTHROPIC_MODEL = 'us.anthropic.claude-sonnet-5-5';
 export const DEFAULT_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
 
 export const DEFAULT_VERIFICATION_MODEL = 'us.anthropic.claude-haiku-4-5-20251001-v1:0';
@@ -16,6 +16,7 @@ export const DEFAULT_VERIFICATION_MODEL = 'us.anthropic.claude-haiku-4-5-2025100
 interface AnthropicConfig {
     maxTokens?: number;
     temperatureExcludesTopP?: boolean;
+    omitSamplingParams?: boolean;
 }
 
 const anthropicPre4_5Config: AnthropicConfig = {
@@ -29,7 +30,8 @@ const anthropic4_5Config: AnthropicConfig = {
 
 const anthropic5Config: AnthropicConfig = {
     maxTokens: 8192,
-    temperatureExcludesTopP: true
+    temperatureExcludesTopP: true,
+    omitSamplingParams: true
 };
 
 interface AmazonConfig {
@@ -78,26 +80,26 @@ export const MODELS = applyInferenceProfilesFromEnv({
             id: 'us.anthropic.claude-3-7-sonnet-20250219-v1:0',
             argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
         },
-        // ACTIVE models
         Claude4Sonnet: {
             name: 'Claude4Sonnet',
             id: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
             argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
         },
-        Claude4Opus: { name: 'Claude4Opus', id: 'us.anthropic.claude-opus-4-20250514-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config) },
         Claude4_1Opus: {
             name: 'Claude4_1Opus',
             id: 'us.anthropic.claude-opus-4-1-20250805-v1:0',
             argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config)
         },
-        Claude4_5Haiku: {
-            name: 'Claude4_5Haiku',
-            id: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
-            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic4_5Config)
-        },
         Claude4_5Sonnet: {
             name: 'Claude4_5Sonnet',
             id: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
+            argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic4_5Config)
+        },
+        // ACTIVE models
+        Claude4Opus: { name: 'Claude4Opus', id: 'us.anthropic.claude-opus-4-20250514-v1:0', argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropicPre4_5Config) },
+        Claude4_5Haiku: {
+            name: 'Claude4_5Haiku',
+            id: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
             argsConstructor: buildModelInvokeBodyAnthropic.bind(this, anthropic4_5Config)
         },
         Claude4_5Opus: {
@@ -282,6 +284,12 @@ function buildModelInvokeBodyAnthropic(config: AnthropicConfig, args: ModelBody)
 
     // For Claude 4.5+ models, temperature and topP are mutually exclusive
     if (config.temperatureExcludesTopP && body.temperature != null) {
+        delete body.top_p;
+    }
+
+    if (config.omitSamplingParams) {
+        delete body.top_k;
+        delete body.temperature;
         delete body.top_p;
     }
 

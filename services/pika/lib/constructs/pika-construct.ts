@@ -2601,25 +2601,11 @@ export class PikaConstruct extends Construct {
         // These map to the model keys in MODELS.ANTHROPIC in model-types-utils.ts
         const profiles = [
             {
-                name: 'Claude4Sonnet',
-                profileName: 'claude-sonnet-4',
-                modelId: 'us.anthropic.claude-sonnet-4-20250514-v1:0',
-                provider: 'ANTHROPIC',
-                modelKey: 'Claude4Sonnet'
-            },
-            {
                 name: 'Claude4_5Haiku',
                 profileName: 'claude-haiku-4-5',
                 modelId: 'us.anthropic.claude-haiku-4-5-20251001-v1:0',
                 provider: 'ANTHROPIC',
                 modelKey: 'Claude4_5Haiku'
-            },
-            {
-                name: 'Claude4_5Sonnet',
-                profileName: 'claude-sonnet-4-5',
-                modelId: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0',
-                provider: 'ANTHROPIC',
-                modelKey: 'Claude4_5Sonnet'
             },
             {
                 name: 'Claude4_6Sonnet',

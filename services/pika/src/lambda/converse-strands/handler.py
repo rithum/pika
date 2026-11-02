@@ -73,9 +73,7 @@ SONNET_5_5_MODEL_ID = 'us.anthropic.claude-sonnet-5-5'
 DEFAULT_MODEL_ID = os.environ.get('MODEL_ID', SONNET_5_5_MODEL_ID)
 ADAPTIVE_THINKING_MODEL_IDS = frozenset({SONNET_5_MODEL_ID, SONNET_5_5_MODEL_ID})
 INFERENCE_PROFILE_ENV_BY_MODEL_ID = {
-    'us.anthropic.claude-sonnet-4-20250514-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4Sonnet',
     'us.anthropic.claude-haiku-4-5-20251001-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_5Haiku',
-    'us.anthropic.claude-sonnet-4-5-20250929-v1:0': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_5Sonnet',
     'us.anthropic.claude-sonnet-4-6': 'INFERENCE_PROFILE_ANTHROPIC_Claude4_6Sonnet',
     SONNET_5_MODEL_ID: 'INFERENCE_PROFILE_ANTHROPIC_Claude5Sonnet',
     SONNET_5_5_MODEL_ID: 'INFERENCE_PROFILE_ANTHROPIC_Claude5_5Sonnet',

@@ -10,6 +10,16 @@ interface PostProcessingResponse {
     };
 }
 
+function joinTextBlocks(content: unknown): string {
+    if (!Array.isArray(content)) {
+        return '';
+    }
+    return content
+        .filter((block) => typeof block?.text === 'string' && block.text.length > 0)
+        .map((block) => block.text)
+        .join('');
+}
+
 /**
  * Extract the text content from the raw LLM response.
  *
@@ -29,14 +39,16 @@ function extractTextFromLlmResponse(raw: string): string | null {
 
     // Try direct format first: {content: [{text: "..."}]}
     const directContent = parsed.content;
-    if (Array.isArray(directContent) && directContent[0]?.text) {
-        return directContent[0].text;
+    const directText = joinTextBlocks(directContent);
+    if (directText) {
+        return directText;
     }
 
     // Try Converse API envelope: {output: {message: {content: [{text: "..."}]}}}
     const envelopeContent = parsed.output?.message?.content;
-    if (Array.isArray(envelopeContent) && envelopeContent[0]?.text) {
-        return envelopeContent[0].text;
+    const envelopeText = joinTextBlocks(envelopeContent);
+    if (envelopeText) {
+        return envelopeText;
     }
 
     return null;

@@ -5,9 +5,7 @@ import { PikaConstruct } from '../../lib/constructs/pika-construct';
 
 const APPLICATION_PROFILE_ARN = 'arn:aws:bedrock:*:*:application-inference-profile/*';
 const EXISTING_PROFILE_IDS = [
-    'PikaConstructClaude4SonnetInferenceProfile208A4E5E',
     'PikaConstructClaude45HaikuInferenceProfile04FA7AF7',
-    'PikaConstructClaude45SonnetInferenceProfileE3A8663E',
     'PikaConstructClaude46SonnetInferenceProfile898C82C8'
 ];
 
@@ -50,10 +48,16 @@ function lambdaEnv(logicalIdPrefix: string): Record<string, unknown> {
 
 describe('inference profile wiring (synthesized)', () => {
     it('adds the Sonnet 5 and 5.5 profiles and keeps the existing logical IDs', () => {
-        template.resourceCountIs('Custom::CreateInferenceProfile', 6);
+        template.resourceCountIs('Custom::CreateInferenceProfile', 4);
         expect(Object.keys(template.findResources('Custom::CreateInferenceProfile'))).toEqual(expect.arrayContaining(EXISTING_PROFILE_IDS));
         profileRef('claude-sonnet-5');
         profileRef('claude-sonnet-5-5');
+    });
+
+    it('no longer creates the Sonnet 4 and 4.5 profile SSM parameters', () => {
+        const paths = Object.values(template.findResources('AWS::SSM::Parameter')).map((r) => JSON.stringify(r.Properties.Name));
+        expect(paths.some((p) => /inference-profile\/Claude4Sonnet"/.test(p) || /inference-profile\/Claude4_5Sonnet"/.test(p))).toBe(false);
+        expect(paths.some((p) => p.includes('inference-profile/Claude4_5Haiku'))).toBe(true);
     });
 
     it('lets the Strands role invoke application inference profiles', () => {

@@ -174,7 +174,7 @@ export const pikaConfig: PikaConfig = {
             tier: 'frontend'
         },
         // Component tag names for granular cost tracking - creates 'component' tag on each resource
-        // with resource-specific values like 'Claude4SonnetInferenceProfile', 'ConverseLambda', etc.
+        // with resource-specific values like 'Claude5_5SonnetInferenceProfile', 'ConverseLambda', etc.
         componentTagNames: ['component']
         // Additional examples of dynamic placeholders:
         // 'DeployedAt': '{timestamp}',                   // Current timestamp in ISO 8601 format
