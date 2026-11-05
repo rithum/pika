@@ -34,6 +34,8 @@ interface ProcessingResults {
     errors: string[];
 }
 
+const DUPLICATE_FEEDBACK_ERROR_NAME = 'ConditionalCheckFailedException';
+
 export async function handler(_event: { sessionId?: string; userId?: string } | undefined, context: Context) {
     console.log('Session insights runner started at:', new Date().toISOString());
 
@@ -475,6 +477,18 @@ async function flushPendingBatches(
     return updates.length;
 }
 
+async function addAIFeedbackIdempotent(feedback: ChatSessionFeedback): Promise<void> {
+    try {
+        await addChatSessionFeedback(feedback);
+    } catch (error) {
+        if (error instanceof Error && error.name === DUPLICATE_FEEDBACK_ERROR_NAME) {
+            console.log(`AI feedback ${feedback.feedbackId} for session ${feedback.sessionId} already exists, skipping`);
+            return;
+        }
+        throw error;
+    }
+}
+
 /**
  * Process feedback records with controlled concurrency to avoid DDB throttling
  */
@@ -482,7 +496,7 @@ async function processFeedbackBatch(feedbackRecords: ChatSessionFeedback[], conf
     if (feedbackRecords.length === 0) return;
 
     // Use controlled concurrency similar to existing session batch processing
-    await pMap(feedbackRecords, (feedback) => addChatSessionFeedback(feedback), {
+    await pMap(feedbackRecords, addAIFeedbackIdempotent, {
         concurrency: config.feedbackConcurrency,
         stopOnError: false // Continue processing other feedback even if one fails
     });
