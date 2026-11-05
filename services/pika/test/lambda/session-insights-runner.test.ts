@@ -367,3 +367,61 @@ describe('concurrent flushes', () => {
         expect(mockSetSessionsInsightsAnalysisInBatch.mock.calls[1][0]).toEqual([expect.objectContaining({ sessionId: 's1' })]);
     });
 });
+
+describe('AI feedback writes', () => {
+    let addFeedback: jest.Mock<(f: unknown) => Promise<void>>;
+
+    function duplicateError() {
+        const err = new Error('The conditional request failed');
+        err.name = 'ConditionalCheckFailedException';
+        return err;
+    }
+
+    async function runWithFeedback(sessionIds: string[]) {
+        await mockSweepPage(sessionIds.map((sessionId) => makeSession({ sessionId })));
+        mockAnalyzeSession.mockImplementation(async (session, feedbackBatch) => {
+            const id = (session as { sessionId: string }).sessionId;
+            (feedbackBatch as unknown[]).push({ feedbackId: `fb-${id}`, sessionId: id });
+            return { update: makeUpdate(id) };
+        });
+        return processInsightsWithPipeline(new Date(), makeConfig({ dbBatchSize: 10 }), makeContext());
+    }
+
+    beforeEach(async () => {
+        const { addChatSessionFeedback } = await import('../../src/lib/chat-admin-apis');
+        addFeedback = addChatSessionFeedback as unknown as jest.Mock<(f: unknown) => Promise<void>>;
+        addFeedback.mockReset().mockResolvedValue(undefined);
+    });
+
+    it('treats an already-existing feedback record as success and still persists the sessions', async () => {
+        addFeedback.mockRejectedValue(duplicateError());
+
+        const result = await runWithFeedback(['s1']);
+
+        expect(addFeedback).toHaveBeenCalledTimes(1);
+        expect(mockSetSessionsInsightsAnalysisInBatch).toHaveBeenCalledTimes(1);
+        expect(result.totalProcessed).toBe(1);
+    });
+
+    it('still surfaces other feedback write errors', async () => {
+        addFeedback.mockRejectedValue(new Error('throttled'));
+
+        const result = await runWithFeedback(['s1']);
+
+        expect(addFeedback).toHaveBeenCalledTimes(1);
+        expect(result.totalFailed).toBe(1);
+        expect(result.errors.join('\n')).toContain('throttled');
+    });
+
+    it('writes the non-duplicate records in a batch that contains a duplicate', async () => {
+        addFeedback.mockImplementation(async (f) => {
+            if ((f as { sessionId: string }).sessionId === 's2') throw duplicateError();
+        });
+
+        await runWithFeedback(['s1', 's2', 's3']);
+
+        const written = addFeedback.mock.calls.map(([f]) => (f as { sessionId: string }).sessionId).sort();
+        expect(written).toEqual(['s1', 's2', 's3']);
+        expect(mockSetSessionsInsightsAnalysisInBatch).toHaveBeenCalledTimes(1);
+    });
+});

@@ -5,6 +5,19 @@ All notable changes to the Pika Framework will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.1] - 2026-11-05
+
+### Fixed
+
+- **Re-analyzing a session no longer fails its AI-feedback writes.** AI feedback IDs are deterministic, so a re-run (the admin "Evaluate this session" action, a re-flagged session or a retried flush) hit the `attribute_not_exists(feedback_id)` condition. Every put threw `ConditionalCheckFailedException` and the flush failed. The session-insights runner now treats that error as already written and logs one line. Other write errors still count as failures. The admin API and end-user feedback paths are unchanged. [#178]
+- **The insights sweep reads the newest sessions first.** The `insight-status-index` query now sets `ScanIndexForward: false`. Its sort key starts with a time-ordered session ID, so ascending order paged through the whole pre-floor backlog before reaching recent sessions. That was slow on stages with a large backlog, and could starve them when one run timed out. [#178]
+- **`pika-shared` 1.8.0 includes the `promptInputFieldPlaceholder` and `assistantPrivacyNotice` feature keys.** They were added in 0.30.0, but the last published package was 1.7.0, so apps that use `pika-shared` from npm couldn't reference them. [#178]
+
+### Migration
+
+1. Run `pika sync`. No `pika-app` upgrade is needed.
+2. If you depend on `pika-shared` from npm, upgrade it to 1.8.0.
+
 ## [0.35.0] - 2026-11-02
 
 ### Changed

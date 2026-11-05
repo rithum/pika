@@ -42,6 +42,11 @@ describe('buildInsightsSweepQueryInput', () => {
         expect(q.ExpressionAttributeValues[':settleCutoff']).toBe(SETTLE);
     });
 
+    it('reads newest first, with and without a start floor', () => {
+        expect(buildInsightsSweepQueryInput('t', SETTLE).ScanIndexForward).toBe(false);
+        expect(buildInsightsSweepQueryInput('t', SETTLE, FLOOR).ScanIndexForward).toBe(false);
+    });
+
     it('omits the floor when startFloor is empty/undefined', () => {
         expect(buildInsightsSweepQueryInput('t', SETTLE, undefined).FilterExpression).toBe('last_update <= :settleCutoff');
         expect(buildInsightsSweepQueryInput('t', SETTLE, '').FilterExpression).toBe('last_update <= :settleCutoff');
