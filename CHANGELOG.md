@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Re-analyzing a session no longer fails its AI-feedback writes.** AI feedback IDs are deterministic, so a re-run (the admin "Evaluate this session" action, a re-flagged session or a retried flush) hit the `attribute_not_exists(feedback_id)` condition. Every put threw `ConditionalCheckFailedException` and the flush failed. The session-insights runner now treats that error as already written and logs one line. Other write errors still count as failures. The admin API and end-user feedback paths are unchanged.
-- **The insights sweep reads the newest sessions first.** The `insight-status-index` query now sets `ScanIndexForward: false`. Its sort key starts with a time-ordered session ID, so ascending order paged through the whole pre-floor backlog before reaching recent sessions. That was slow on stages with a large backlog, and could starve them when one run timed out.
+- **Re-analyzing a session no longer fails its AI-feedback writes.** AI feedback IDs are deterministic, so a re-run (the admin "Evaluate this session" action, a re-flagged session or a retried flush) hit the `attribute_not_exists(feedback_id)` condition. Every put threw `ConditionalCheckFailedException` and the flush failed. The session-insights runner now treats that error as already written and logs one line. Other write errors still count as failures. The admin API and end-user feedback paths are unchanged. [#178]
+- **The insights sweep reads the newest sessions first.** The `insight-status-index` query now sets `ScanIndexForward: false`. Its sort key starts with a time-ordered session ID, so ascending order paged through the whole pre-floor backlog before reaching recent sessions. That was slow on stages with a large backlog, and could starve them when one run timed out. [#178]
 
 ### Migration
 
