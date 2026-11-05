@@ -1,7 +1,19 @@
 {
-  "latestVersion": "0.35.0",
-  "currentDevelopment": "0.35.0",
+  "latestVersion": "0.35.1",
+  "currentDevelopment": "0.35.1",
   "releases": [
+    {
+      "version": "0.35.1",
+      "date": "2026-11-05",
+      "status": "released",
+      "breaking": false,
+      "summary": "Session re-analysis no longer fails its AI-feedback writes, and the insights sweep reads the newest sessions first so a large backlog no longer delays recent ones.",
+      "highlights": [
+        "Fixed: the session-insights runner treats ConditionalCheckFailedException on a deterministic AI-feedback ID as already written, so re-analysis and retried flushes no longer fail. Other write errors still count as failures; the admin API and end-user feedback paths are unchanged.",
+        "Fixed: the insights sweep query sets ScanIndexForward false, so recent sessions are read before the pre-floor backlog.",
+        "No pika-app upgrade is needed."
+      ]
+    },
     {
       "version": "0.35.0",
       "date": "2026-11-02",
